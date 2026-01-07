@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useMemo, useCallback, useEffect } from "react";
-import { useThree, ThreeEvent } from "@react-three/fiber";
+import { useRef, useMemo, useCallback } from "react";
+import { useThree, useFrame, ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMapStore } from "@/store/mapStore";
+import { morphProgressRef } from "@/store/hooks";
 import { featureToMorphableGeometry, createMorphableBufferGeometry, updateMorphProgress } from "@/lib/geo/morphing";
 import type { CountryFeature } from "@/types/geo";
 import "./MorphMaterial"; // Import to register the custom material
@@ -50,12 +51,12 @@ const DEFAULT_SUN_DIRECTION = new THREE.Vector3(1, 0.3, 0.5).normalize();
 interface CountryMeshProps {
   feature: CountryFeature;
   index: number;
-  morphProgress: number;
   sunDirection?: THREE.Vector3;
 }
 
-export function CountryMesh({ feature, index, morphProgress, sunDirection = DEFAULT_SUN_DIRECTION }: CountryMeshProps) {
+export function CountryMesh({ feature, index, sunDirection = DEFAULT_SUN_DIRECTION }: CountryMeshProps) {
   const meshRef = useRef<THREE.Mesh>(null);
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
   const { camera } = useThree();
 
   const { interaction, setHoveredFeature, selectCountry } = useMapStore();
@@ -64,22 +65,35 @@ export function CountryMesh({ feature, index, morphProgress, sunDirection = DEFA
   const isHovered = interaction.hoveredFeatureId === featureId;
   const isSelected = interaction.selectedFeatureId === featureId;
 
-  // Create morphable geometry - memoized
+  // Create morphable geometry ONCE
   const geometry = useMemo(() => {
     const morphableData = featureToMorphableGeometry(feature);
     if (!morphableData) return null;
     return createMorphableBufferGeometry(morphableData, 0);
   }, [feature]);
 
-  // Update geometry position for raycasting when morph progress changes
-  useEffect(() => {
-    if (geometry) {
-      updateMorphProgress(geometry, morphProgress);
+  // Update shader uniform and raycasting geometry every frame (reading from ref, no re-render)
+  const lastEndpointRef = useRef<number>(-1);
+  useFrame(() => {
+    const progress = morphProgressRef.current;
+
+    // Update shader uniform directly
+    if (materialRef.current) {
+      materialRef.current.uniforms.morphProgress.value = progress;
     }
-  }, [geometry, morphProgress]);
+
+    // Update position for raycasting only at endpoints
+    if (geometry) {
+      const endpoint = progress < 0.05 ? 0 : progress > 0.95 ? 1 : -1;
+      if (endpoint !== -1 && endpoint !== lastEndpointRef.current) {
+        updateMorphProgress(geometry, endpoint);
+        lastEndpointRef.current = endpoint;
+      }
+    }
+  });
 
   // Check if we're in globe mode (for front-facing checks)
-  const isGlobeMode = morphProgress < 0.5;
+  const isGlobeMode = morphProgressRef.current < 0.5;
 
   // Check if the intersection is on the front-facing side (visible to camera)
   // Only relevant in globe mode - in flat mode all faces are front-facing
@@ -150,14 +164,15 @@ export function CountryMesh({ feature, index, morphProgress, sunDirection = DEFA
       onClick={handleClick}
       renderOrder={1}
     >
-      <meshStandardMaterial
+      <morphShaderMaterial
+        ref={materialRef}
+        morphProgress={morphProgressRef.current}
         color={color}
         emissive={emissive}
         emissiveIntensity={emissiveIntensity}
-        roughness={0.8}
-        metalness={0.1}
+        sunDirection={sunDirection}
+        enableDayNight={false}
         side={THREE.DoubleSide}
-        flatShading={false}
       />
     </mesh>
   );

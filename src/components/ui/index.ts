@@ -1,3 +1,2 @@
-export { ViewToggle } from "./ViewToggle";
-export { LayerControls } from "./LayerControls";
+export { ControlPanel } from "./ControlPanel";
 export { CountryPanel } from "./CountryPanel";

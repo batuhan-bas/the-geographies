@@ -1,6 +1,12 @@
 import { useShallow } from "zustand/react/shallow";
 import { useMapStore } from "./mapStore";
-import type { MapLayer, ViewMode } from "@/types/geo";
+import type { MapLayer } from "@/types/geo";
+
+// ==========================================
+// Global morph progress ref (avoids re-renders)
+// ==========================================
+
+export const morphProgressRef = { current: 0 };
 
 // ==========================================
 // Custom Hooks for Map Store

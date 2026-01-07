@@ -4,22 +4,33 @@ Interactive 3D world map with morphable Globe/Flat projections built with Next.j
 
 ![Globe View](https://img.shields.io/badge/View-Globe-blue) ![Flat View](https://img.shields.io/badge/View-Flat-green)
 
+## Screenshots
+
+<p align="center">
+  <img src="public/screenshots/political-globe.png" alt="Political Globe View" width="100%">
+</p>
+
+<p align="center">
+  <img src="public/screenshots/political-flat.png" alt="Political Flat View" width="49%">
+  <img src="public/screenshots/physical-globe.png" alt="Physical Globe View" width="49%">
+</p>
+
 ## Features
 
-- **Morphable Projections**: Smooth transition between 3D globe and 2D flat map views
-- **Interactive Countries**: Click on countries to view detailed information
+- **Morphable Projections**: Smooth GPU-accelerated transition between 3D globe and 2D flat map views
+- **Interactive Countries**: Click on countries to view detailed information in a slide-out panel
+- **Multiple Layers**: Toggle between Political and Physical map layers
 - **Continent-based Coloring**: Warm color palette organized by continent
-- **Country Labels**: Dynamic labels that appear based on zoom level
+- **Modern Minimal UI**: Clean, Apple/Linear-inspired control panel
 - **Responsive Controls**: Pan, zoom, and rotate with mouse/touch
-- **Day/Night Effect**: Animated sun lighting on globe mode (coming soon)
 
 ## Tech Stack
 
-- **Framework**: Next.js 15 with App Router
+- **Framework**: Next.js 16 with App Router
 - **3D Rendering**: React Three Fiber + Three.js
 - **Animations**: GSAP for smooth transitions
 - **State Management**: Zustand
-- **Styling**: Tailwind CSS
+- **Styling**: Tailwind CSS 4
 - **Language**: TypeScript
 
 ## Getting Started
@@ -59,14 +70,14 @@ src/
 ├── app/                    # Next.js App Router
 ├── components/
 │   ├── canvas/            # 3D components (Globe, CountryMesh, etc.)
-│   └── ui/                # UI components (CountryPanel, Controls)
+│   └── ui/                # UI components (ControlPanel, CountryPanel)
 ├── lib/
 │   └── geo/               # Geographic utilities (projections, morphing)
 ├── store/                 # Zustand state management
 └── types/                 # TypeScript type definitions
 
 public/
-├── data/                  # GeoJSON country data
+├── data/                  # TopoJSON country data
 └── textures/              # Earth textures
 ```
 
@@ -75,7 +86,7 @@ public/
 - **Globe Mode**: Drag to rotate, scroll to zoom
 - **Flat Mode**: Drag to pan, scroll to zoom
 - **Click**: Select a country to view details
-- **Toggle**: Switch between Globe/Flat views
+- **Control Panel**: Switch views and toggle layers (bottom-left)
 
 ## Data Sources
 
@@ -88,8 +99,8 @@ MIT
 
 ## Roadmap
 
-- [ ] Physical layer with terrain textures
 - [ ] Day/night cycle animation
 - [ ] Country search functionality
 - [ ] Data visualization overlays
-- [ ] Performance optimizations
+- [ ] More map layers (topography, administrative)
+- [ ] Mobile touch optimizations

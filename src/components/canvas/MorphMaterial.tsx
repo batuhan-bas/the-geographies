@@ -133,27 +133,27 @@ const MorphShaderMaterial = shaderMaterial(
 extend({ MorphShaderMaterial });
 
 // TypeScript declaration for JSX
+type MorphShaderMaterialProps = {
+  morphProgress?: number;
+  color?: THREE.Color | string;
+  emissive?: THREE.Color | string;
+  emissiveIntensity?: number;
+  roughness?: number;
+  metalness?: number;
+  side?: THREE.Side;
+  polygonOffset?: boolean;
+  polygonOffsetFactor?: number;
+  polygonOffsetUnits?: number;
+  attach?: string;
+  sunDirection?: THREE.Vector3;
+  nightColor?: THREE.Color | string;
+  enableDayNight?: boolean;
+  ref?: React.Ref<THREE.ShaderMaterial>;
+};
+
 declare module "@react-three/fiber" {
   interface ThreeElements {
-    morphShaderMaterial: React.DetailedHTMLProps<
-      React.HTMLAttributes<HTMLElement>,
-      HTMLElement
-    > & {
-      morphProgress?: number;
-      color?: THREE.Color | string;
-      emissive?: THREE.Color | string;
-      emissiveIntensity?: number;
-      roughness?: number;
-      metalness?: number;
-      side?: THREE.Side;
-      polygonOffset?: boolean;
-      polygonOffsetFactor?: number;
-      polygonOffsetUnits?: number;
-      attach?: string;
-      sunDirection?: THREE.Vector3;
-      nightColor?: THREE.Color | string;
-      enableDayNight?: boolean;
-    };
+    morphShaderMaterial: MorphShaderMaterialProps;
   }
 }
 

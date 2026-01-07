@@ -101,7 +101,6 @@ export function Globe({
           key={feature.properties?.iso_a3 || `country-${index}`}
           feature={feature}
           index={index}
-          morphProgress={morphProgress}
           sunDirection={sunDirection}
         />
       ))}
