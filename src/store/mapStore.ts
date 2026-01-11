@@ -19,6 +19,7 @@ const initialState: MapState = {
   viewMode: "globe",
   activeLayers: new Set<MapLayer>(["political"]),
   lodLevel: "medium",
+  enableDayNight: true,
   morphProgress: 0,
   isAnimating: false,
   interaction: {
@@ -126,6 +127,15 @@ export const useMapStore = create<MapStore>()(
       set({ lodLevel: level });
     },
 
+    // Day/Night
+    setEnableDayNight: (enabled: boolean) => {
+      set({ enableDayNight: enabled });
+    },
+
+    toggleDayNight: () => {
+      set((state) => ({ enableDayNight: !state.enableDayNight }));
+    },
+
     // Panel
     openPanel: () => set({ isPanelOpen: true }),
     closePanel: () => set((state) => ({
@@ -169,3 +179,4 @@ export const selectSelectedCountry = (state: MapStore) => state.selectedCountry;
 export const selectIsPanelOpen = (state: MapStore) => state.isPanelOpen;
 export const selectInteraction = (state: MapStore) => state.interaction;
 export const selectLODLevel = (state: MapStore) => state.lodLevel;
+export const selectEnableDayNight = (state: MapStore) => state.enableDayNight;

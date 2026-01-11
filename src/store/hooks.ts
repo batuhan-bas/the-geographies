@@ -122,3 +122,23 @@ export function useIsLayerActive(layer: MapLayer): boolean {
 export function useIsGlobeView(): boolean {
   return useMapStore((state) => state.viewMode === "globe");
 }
+
+/**
+ * Hook for day/night setting
+ */
+export function useDayNight() {
+  return useMapStore(
+    useShallow((state) => ({
+      enableDayNight: state.enableDayNight,
+      setEnableDayNight: state.setEnableDayNight,
+      toggleDayNight: state.toggleDayNight,
+    }))
+  );
+}
+
+/**
+ * Hook for accessing all countries
+ */
+export function useCountries() {
+  return useMapStore((state) => state.countries);
+}

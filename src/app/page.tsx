@@ -4,7 +4,9 @@ import dynamic from "next/dynamic";
 import { Suspense, useEffect, useState } from "react";
 import { ControlPanel } from "@/components/ui/ControlPanel";
 import { CountryPanel } from "@/components/ui/CountryPanel";
+import { CountrySearch } from "@/components/ui/CountrySearch";
 import { loadCountriesFromTopoJSON } from "@/lib/geo/loadCountries";
+import { useMapStore } from "@/store/mapStore";
 import type { CountryFeature } from "@/types/geo";
 
 // Dynamic import for MapCanvas to avoid SSR issues with Three.js
@@ -26,13 +28,15 @@ const MapCanvas = dynamic(
 export default function HomePage() {
   const [countries, setCountries] = useState<CountryFeature[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const setStoreCountries = useMapStore((state) => state.setCountries);
 
   useEffect(() => {
     loadCountriesFromTopoJSON().then((data) => {
       setCountries(data);
+      setStoreCountries(data); // Also store in Zustand for search
       setIsLoading(false);
     });
-  }, []);
+  }, [setStoreCountries]);
 
   return (
     <main className="relative w-screen h-screen overflow-hidden bg-zinc-950">
@@ -61,6 +65,7 @@ export default function HomePage() {
       </Suspense>
 
       {/* UI Overlay */}
+      <CountrySearch />
       <ControlPanel />
       <CountryPanel />
 

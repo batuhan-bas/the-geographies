@@ -70,61 +70,60 @@ const MorphShaderMaterial = shaderMaterial(
     varying vec3 vWorldPosition;
 
     void main() {
-      // Use the normal, handling back faces
       vec3 normal = normalize(vNormal);
       vec3 viewDir = normalize(vViewPosition);
 
-      // Flip normal for back faces to ensure consistent lighting
       if (!gl_FrontFacing) {
         normal = -normal;
       }
 
-      // Calculate day/night factor based on sun direction (only in globe mode)
+      // Calculate day/night factor
       float dayNightFactor = 1.0;
-      float twilightWidth = 0.2; // Wider twilight zone for softer transition
 
       if (enableDayNight && morphProgress < 0.5) {
-        // Globe mode - calculate sun illumination
         vec3 surfaceDir = normalize(vWorldPosition);
         float sunDot = dot(surfaceDir, sunDirection);
 
-        // Smooth transition from day to night
-        dayNightFactor = smoothstep(-twilightWidth, twilightWidth * 0.5, sunDot);
+        // Sharper transition for more dramatic effect
+        float twilightWidth = 0.15;
+        dayNightFactor = smoothstep(-twilightWidth, twilightWidth, sunDot);
       }
 
-      // Day side colors - bright and natural
-      vec3 dayAmbient = color * 0.5;
+      // Day lighting - vibrant
       float diffuseStrength = max(dot(normal, sunDirection), 0.0);
-      vec3 dayDiffuse = color * diffuseStrength * 0.7;
+      vec3 dayColor = color * (0.4 + diffuseStrength * 0.8);
 
-      // Night side colors - not too dark, subtle visibility
-      vec3 nightAmbient = color * 0.2; // Keep some color visible
-      vec3 nightTint = vec3(0.15, 0.2, 0.35); // Subtle blue night tint
+      // Night - very dark with blue tint
+      vec3 nightBase = color * 0.05;
+      vec3 nightTint = vec3(0.02, 0.04, 0.12);
+      vec3 nightColor = nightBase + nightTint;
 
-      // Mix day and night based on sun position
-      vec3 ambient = mix(nightAmbient + nightTint, dayAmbient, dayNightFactor);
-      vec3 diffuse = dayDiffuse * dayNightFactor;
+      // City lights effect on night side (subtle orange dots based on position)
+      float cityNoise = fract(sin(dot(vWorldPosition.xy, vec2(12.9898, 78.233))) * 43758.5453);
+      vec3 cityLights = vec3(1.0, 0.8, 0.4) * step(0.97, cityNoise) * 0.3 * (1.0 - dayNightFactor);
 
-      // Soft fill light for overall visibility
-      vec3 fillLight = color * 0.15;
+      // Twilight glow - orange/red at the terminator
+      float twilightGlow = smoothstep(0.0, 0.3, dayNightFactor) * (1.0 - smoothstep(0.3, 0.6, dayNightFactor));
+      vec3 twilightColor = vec3(1.0, 0.4, 0.2) * twilightGlow * 0.15;
 
-      // Subtle rim light
+      // Mix day and night
+      vec3 baseColor = mix(nightColor, dayColor, dayNightFactor);
+
+      // Add effects
+      baseColor += cityLights + twilightColor;
+
+      // Rim light for atmosphere effect
       float rim = 1.0 - max(dot(viewDir, normal), 0.0);
-      vec3 rimLight = color * pow(rim, 4.0) * 0.1;
+      vec3 rimLight = vec3(0.3, 0.5, 1.0) * pow(rim, 3.0) * 0.15 * (1.0 - dayNightFactor);
+      baseColor += rimLight;
 
-      // Emissive (for hover/selection)
-      vec3 emissiveColor = emissive * emissiveIntensity;
+      // Emissive for hover/selection
+      baseColor += emissive * emissiveIntensity;
 
-      // Combine all lighting
-      vec3 finalColor = ambient + diffuse + fillLight + rimLight + emissiveColor;
+      // Tone mapping
+      baseColor = baseColor / (baseColor + vec3(0.5));
 
-      // Soft tone mapping
-      finalColor = finalColor / (finalColor + vec3(0.8));
-
-      // Gamma correction for natural look
-      finalColor = pow(finalColor, vec3(0.9));
-
-      gl_FragColor = vec4(finalColor, 1.0);
+      gl_FragColor = vec4(baseColor, 1.0);
     }
   `
 );

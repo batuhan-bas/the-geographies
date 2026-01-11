@@ -3,7 +3,7 @@
 import { useRef, useMemo } from "react";
 import { useLoader, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { morphProgressRef } from "@/store/hooks";
+import { morphProgressRef, useDayNight } from "@/store/hooks";
 
 // ==========================================
 // PhysicalGlobe Component Props
@@ -11,23 +11,33 @@ import { morphProgressRef } from "@/store/hooks";
 
 interface PhysicalGlobeProps {
   morphProgress: number;
+  sunDirection?: THREE.Vector3;
 }
 
 // ==========================================
-// Constants
+// Constants - Must match coordinates.ts
 // ==========================================
 
-const SPHERE_RADIUS = 0.998;
-const FLAT_SCALE = 2.0; // Scale for flat map width
-const SEGMENTS = 128; // Higher resolution for smooth morphing
+const GLOBE_RADIUS = 1.0;
+const FLAT_SCALE = 2.0;
+const SEGMENTS = 128;
+const DEG_TO_RAD = Math.PI / 180;
+
+// Physical globe renders slightly inside/behind political layer to avoid z-fighting
+const SPHERE_OFFSET = 0.998; // Sphere radius multiplier (slightly smaller)
+const FLAT_Z_OFFSET = -0.01; // Z offset in flat mode (behind political layer)
 
 // ==========================================
 // PhysicalGlobe Component
 // ==========================================
 
-export function PhysicalGlobe({ morphProgress }: PhysicalGlobeProps) {
+export function PhysicalGlobe({
+  morphProgress,
+  sunDirection = new THREE.Vector3(1, 0.3, 0.5).normalize()
+}: PhysicalGlobeProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const { enableDayNight } = useDayNight();
 
   // Load textures
   const dayTexture = useLoader(THREE.TextureLoader, "/textures/earth_daymap.jpg");
@@ -37,6 +47,7 @@ export function PhysicalGlobe({ morphProgress }: PhysicalGlobeProps) {
   dayTexture.colorSpace = THREE.SRGBColorSpace;
 
   // Create morphable geometry with sphere and flat positions
+  // Uses same coordinate system as coordinates.ts for alignment with political layer
   const geometry = useMemo(() => {
     const geo = new THREE.BufferGeometry();
 
@@ -49,40 +60,41 @@ export function PhysicalGlobe({ morphProgress }: PhysicalGlobeProps) {
     const uvs: number[] = [];
     const indices: number[] = [];
 
-    // Generate vertices
     for (let y = 0; y <= heightSegments; y++) {
-      const v = y / heightSegments;
-      const theta = v * Math.PI; // 0 to PI (top to bottom)
+      // latitude: 90 (north pole) to -90 (south pole)
+      const latitude = 90 - (y / heightSegments) * 180;
 
       for (let x = 0; x <= widthSegments; x++) {
-        const u = x / widthSegments;
-        const phi = u * Math.PI * 2 - Math.PI; // -PI to PI (full rotation)
+        // longitude: -180 to 180
+        const longitude = (x / widthSegments) * 360 - 180;
 
-        // Sphere position
-        const sphereX = -SPHERE_RADIUS * Math.sin(theta) * Math.cos(phi);
-        const sphereY = SPHERE_RADIUS * Math.cos(theta);
-        const sphereZ = SPHERE_RADIUS * Math.sin(theta) * Math.sin(phi);
+        // Sphere position - matches geoToSphere() in coordinates.ts
+        const phi = (90 - latitude) * DEG_TO_RAD;
+        const theta = (longitude + 180) * DEG_TO_RAD;
+
+        // Apply offset to render inside/behind political layer
+        const radius = GLOBE_RADIUS * SPHERE_OFFSET;
+        const sphereX = -radius * Math.sin(phi) * Math.cos(theta);
+        const sphereY = radius * Math.cos(phi);
+        const sphereZ = radius * Math.sin(phi) * Math.sin(theta);
 
         spherePositions.push(sphereX, sphereY, sphereZ);
 
-        // Flat position (Equirectangular projection)
-        // Map longitude (-180 to 180) to x (-FLAT_SCALE to FLAT_SCALE)
-        // Map latitude (90 to -90) to y (FLAT_SCALE/2 to -FLAT_SCALE/2)
-        const flatX = (u - 0.5) * FLAT_SCALE * 2;
-        const flatY = (0.5 - v) * FLAT_SCALE;
-        const flatZ = 0;
+        // Flat position - matches geoToFlat() in coordinates.ts
+        const flatX = (longitude / 180) * FLAT_SCALE;
+        const flatY = (latitude / 90) * FLAT_SCALE * 0.5;
+        const flatZ = FLAT_Z_OFFSET; // Behind political layer
 
         flatPositions.push(flatX, flatY, flatZ);
-
-        // Start with sphere positions
         vertices.push(sphereX, sphereY, sphereZ);
 
-        // UV coordinates
+        // UV for texture mapping
+        const u = (longitude + 180) / 360;
+        const v = (90 - latitude) / 180;
         uvs.push(u, 1 - v);
       }
     }
 
-    // Generate indices
     for (let y = 0; y < heightSegments; y++) {
       for (let x = 0; x < widthSegments; x++) {
         const a = y * (widthSegments + 1) + x;
@@ -105,21 +117,25 @@ export function PhysicalGlobe({ morphProgress }: PhysicalGlobeProps) {
     return geo;
   }, []);
 
-  // Update morph progress every frame
+  // Update uniforms every frame
   useFrame(() => {
     if (materialRef.current) {
-      materialRef.current.uniforms.morphProgress.value = morphProgressRef.current;
+      const progress = morphProgressRef.current;
+      materialRef.current.uniforms.morphProgress.value = progress;
+      materialRef.current.uniforms.sunDirection.value.copy(sunDirection);
+      materialRef.current.uniforms.enableDayNight.value = enableDayNight && progress < 0.5;
     }
   });
 
-  // Custom shader material for morphing with texture
+  // Custom shader material with day/night effect
   const shaderMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
       uniforms: {
         morphProgress: { value: morphProgressRef.current },
         dayMap: { value: dayTexture },
         bumpMap: { value: bumpTexture },
-        bumpScale: { value: 0.02 },
+        sunDirection: { value: sunDirection.clone() },
+        enableDayNight: { value: enableDayNight },
       },
       vertexShader: `
         attribute vec3 spherePosition;
@@ -129,20 +145,18 @@ export function PhysicalGlobe({ morphProgress }: PhysicalGlobeProps) {
 
         varying vec2 vUv;
         varying vec3 vNormal;
-        varying vec3 vPosition;
+        varying vec3 vWorldPosition;
 
         void main() {
           vUv = uv;
 
-          // Interpolate between sphere and flat positions
           vec3 morphedPosition = mix(spherePosition, flatPosition, morphProgress);
 
-          // Calculate morphed normal
           vec3 sphereNormal = normalize(spherePosition);
           vec3 flatNormal = vec3(0.0, 0.0, 1.0);
           vNormal = normalize(mix(sphereNormal, flatNormal, morphProgress));
 
-          vPosition = morphedPosition;
+          vWorldPosition = (modelMatrix * vec4(morphedPosition, 1.0)).xyz;
 
           gl_Position = projectionMatrix * modelViewMatrix * vec4(morphedPosition, 1.0);
         }
@@ -150,37 +164,65 @@ export function PhysicalGlobe({ morphProgress }: PhysicalGlobeProps) {
       fragmentShader: `
         uniform sampler2D dayMap;
         uniform sampler2D bumpMap;
-        uniform float bumpScale;
         uniform float morphProgress;
+        uniform vec3 sunDirection;
+        uniform bool enableDayNight;
 
         varying vec2 vUv;
         varying vec3 vNormal;
-        varying vec3 vPosition;
+        varying vec3 vWorldPosition;
 
         void main() {
-          // Sample the day texture
-          vec4 dayColor = texture2D(dayMap, vUv);
-
-          // Simple lighting
-          vec3 lightDir = normalize(vec3(1.0, 0.5, 1.0));
+          vec4 texColor = texture2D(dayMap, vUv);
           vec3 normal = normalize(vNormal);
 
-          // Flip normal for back faces
           if (!gl_FrontFacing) {
             normal = -normal;
           }
 
-          float diffuse = max(dot(normal, lightDir), 0.0);
-          float ambient = 0.3;
+          float dayNightFactor = 1.0;
 
-          vec3 finalColor = dayColor.rgb * (ambient + diffuse * 0.7);
+          if (enableDayNight && morphProgress < 0.5) {
+            vec3 surfaceDir = normalize(vWorldPosition);
+            float sunDot = dot(surfaceDir, sunDirection);
+            // Sharper terminator line
+            dayNightFactor = smoothstep(-0.1, 0.15, sunDot);
+          }
+
+          // Day side - bright and colorful
+          float diffuse = max(dot(normal, sunDirection), 0.0);
+          vec3 dayColor = texColor.rgb * (0.5 + diffuse * 0.7);
+
+          // Night side - very dark blue
+          vec3 nightColor = texColor.rgb * 0.02 + vec3(0.01, 0.02, 0.06);
+
+          // City lights simulation
+          float cityNoise = fract(sin(dot(vUv * 100.0, vec2(12.9898, 78.233))) * 43758.5453);
+          float landMask = step(0.3, texColor.g - texColor.b * 0.5); // Rough land detection
+          vec3 cityLights = vec3(1.0, 0.9, 0.5) * step(0.985, cityNoise) * landMask * 0.5;
+          cityLights *= (1.0 - dayNightFactor);
+
+          // Twilight band - orange glow at terminator
+          float twilightBand = smoothstep(0.0, 0.25, dayNightFactor) * (1.0 - smoothstep(0.25, 0.5, dayNightFactor));
+          vec3 twilightGlow = vec3(1.0, 0.5, 0.2) * twilightBand * 0.2;
+
+          // Atmosphere rim on night side
+          float fresnel = pow(1.0 - max(dot(normalize(-vWorldPosition), normal), 0.0), 3.0);
+          vec3 atmosphereRim = vec3(0.2, 0.4, 1.0) * fresnel * 0.2 * (1.0 - dayNightFactor);
+
+          // Combine
+          vec3 finalColor = mix(nightColor, dayColor, dayNightFactor);
+          finalColor += cityLights + twilightGlow + atmosphereRim;
+
+          // Subtle tone mapping
+          finalColor = finalColor / (finalColor + vec3(0.6));
 
           gl_FragColor = vec4(finalColor, 1.0);
         }
       `,
       side: THREE.DoubleSide,
     });
-  }, [dayTexture, bumpTexture]);
+  }, [dayTexture, bumpTexture, sunDirection, enableDayNight]);
 
   return (
     <mesh ref={meshRef} geometry={geometry} material={shaderMaterial}>

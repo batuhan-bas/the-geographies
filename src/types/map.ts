@@ -17,6 +17,7 @@ export interface MapState {
   viewMode: ViewMode;
   activeLayers: Set<MapLayer>;
   lodLevel: LODLevel;
+  enableDayNight: boolean;
 
   // Morph Animation
   morphProgress: number;
@@ -62,6 +63,10 @@ export interface MapActions {
 
   // LOD
   setLODLevel: (level: LODLevel) => void;
+
+  // Day/Night
+  setEnableDayNight: (enabled: boolean) => void;
+  toggleDayNight: () => void;
 
   // Panel
   openPanel: () => void;

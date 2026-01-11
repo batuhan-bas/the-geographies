@@ -31,6 +31,7 @@ export function featureToMorphableGeometry(
 
 /**
  * Convert a single polygon to morphable geometry using THREE.ShapeGeometry
+ * Note: Holes (lakes) are intentionally ignored to render solid country shapes
  */
 function polygonToMorphable(
   coordinates: Position[][],
@@ -50,19 +51,9 @@ function polygonToMorphable(
     }
     shape.closePath();
 
-    // Add holes
-    for (let h = 1; h < coordinates.length; h++) {
-      const holeRing = coordinates[h];
-      if (holeRing.length >= 3) {
-        const holePath = new THREE.Path();
-        holePath.moveTo(holeRing[0][0], holeRing[0][1]);
-        for (let i = 1; i < holeRing.length; i++) {
-          holePath.lineTo(holeRing[i][0], holeRing[i][1]);
-        }
-        holePath.closePath();
-        shape.holes.push(holePath);
-      }
-    }
+    // Note: Holes (lakes, internal bodies of water) are intentionally NOT added
+    // This creates solid country shapes without lake cutouts
+    // The physical layer below will not show through
 
     const shapeGeom = new THREE.ShapeGeometry(shape);
     const posAttr = shapeGeom.getAttribute("position");

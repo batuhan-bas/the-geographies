@@ -69,7 +69,7 @@ export function Globe({
       {/* Physical Earth texture (when physical layer active) */}
       {showPhysical && (
         <Suspense fallback={null}>
-          <PhysicalGlobe morphProgress={morphProgress} />
+          <PhysicalGlobe morphProgress={morphProgress} sunDirection={sunDirection} />
         </Suspense>
       )}
 

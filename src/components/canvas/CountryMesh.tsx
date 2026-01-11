@@ -4,7 +4,7 @@ import { useRef, useMemo, useCallback } from "react";
 import { useThree, useFrame, ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMapStore } from "@/store/mapStore";
-import { morphProgressRef } from "@/store/hooks";
+import { morphProgressRef, useDayNight } from "@/store/hooks";
 import { featureToMorphableGeometry, createMorphableBufferGeometry, updateMorphProgress } from "@/lib/geo/morphing";
 import type { CountryFeature } from "@/types/geo";
 import "./MorphMaterial"; // Import to register the custom material
@@ -60,6 +60,7 @@ export function CountryMesh({ feature, index, sunDirection = DEFAULT_SUN_DIRECTI
   const { camera } = useThree();
 
   const { interaction, setHoveredFeature, selectCountry } = useMapStore();
+  const { enableDayNight } = useDayNight();
 
   const featureId = feature.properties?.iso_a3 || `country-${index}`;
   const isHovered = interaction.hoveredFeatureId === featureId;
@@ -72,14 +73,15 @@ export function CountryMesh({ feature, index, sunDirection = DEFAULT_SUN_DIRECTI
     return createMorphableBufferGeometry(morphableData, 0);
   }, [feature]);
 
-  // Update shader uniform and raycasting geometry every frame (reading from ref, no re-render)
+  // Update shader uniforms and raycasting geometry every frame (reading from ref, no re-render)
   const lastEndpointRef = useRef<number>(-1);
   useFrame(() => {
     const progress = morphProgressRef.current;
 
-    // Update shader uniform directly
+    // Update shader uniforms directly
     if (materialRef.current) {
       materialRef.current.uniforms.morphProgress.value = progress;
+      materialRef.current.uniforms.enableDayNight.value = enableDayNight && progress < 0.5;
     }
 
     // Update position for raycasting only at endpoints
@@ -171,7 +173,7 @@ export function CountryMesh({ feature, index, sunDirection = DEFAULT_SUN_DIRECTI
         emissive={emissive}
         emissiveIntensity={emissiveIntensity}
         sunDirection={sunDirection}
-        enableDayNight={false}
+        enableDayNight={enableDayNight}
         side={THREE.DoubleSide}
       />
     </mesh>
