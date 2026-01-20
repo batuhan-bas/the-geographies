@@ -1,5 +1,6 @@
 import { useShallow } from "zustand/react/shallow";
 import { useMapStore } from "./mapStore";
+import { useVisualizationStore } from "./visualizationStore";
 import type { MapLayer } from "@/types/geo";
 
 // ==========================================
@@ -141,4 +142,39 @@ export function useDayNight() {
  */
 export function useCountries() {
   return useMapStore((state) => state.countries);
+}
+
+// ==========================================
+// Visualization Hooks
+// ==========================================
+
+/**
+ * Hook for choropleth visualization
+ */
+export function useChoropleth() {
+  return useVisualizationStore(
+    useShallow((state) => ({
+      config: state.choroplethConfig,
+      data: state.choroplethData,
+      setConfig: state.setChoroplethConfig,
+      setData: state.setChoroplethData,
+      clearData: state.clearChoroplethData,
+    }))
+  );
+}
+
+/**
+ * Hook for heatmap visualization
+ */
+export function useHeatmap() {
+  return useVisualizationStore(
+    useShallow((state) => ({
+      config: state.heatmapConfig,
+      points: state.heatmapPoints,
+      setConfig: state.setHeatmapConfig,
+      setPoints: state.setHeatmapPoints,
+      addPoint: state.addHeatmapPoint,
+      clear: state.clearHeatmap,
+    }))
+  );
 }

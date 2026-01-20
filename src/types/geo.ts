@@ -5,7 +5,13 @@ import type { Feature, Geometry } from "geojson";
 // ==========================================
 
 export type ViewMode = "globe" | "flat";
-export type MapLayer = "political" | "physical" | "topography" | "administrative";
+export type MapLayer =
+  | "political"
+  | "physical"
+  | "topography"
+  | "administrative"
+  | "choropleth"
+  | "heatmap";
 
 export interface GeoCoordinate {
   longitude: number;

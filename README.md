@@ -20,7 +20,8 @@ Interactive 3D world map with morphable Globe/Flat projections built with Next.j
 - **Morphable Projections**: Smooth GPU-accelerated transition between 3D globe and 2D flat map views
 - **Interactive Countries**: Click on countries to view detailed information in a slide-out panel
 - **Country Search**: Quick search by country name or ISO code with keyboard navigation
-- **Multiple Layers**: Toggle between Political and Physical map layers
+- **Multiple Layers**: Toggle between Political, Physical, Choropleth, and Heatmap layers
+- **Data Visualization**: Choropleth maps for country data and heatmaps for intensity visualization
 - **Day/Night Cycle**: Realistic day/night lighting with city lights, twilight glow, and atmosphere effects
 - **Continent-based Coloring**: Warm color palette organized by continent
 - **Modern Minimal UI**: Clean, Apple/Linear-inspired control panel
@@ -72,9 +73,11 @@ src/
 ├── app/                    # Next.js App Router
 ├── components/
 │   ├── canvas/            # 3D components (Globe, CountryMesh, etc.)
-│   └── ui/                # UI components (ControlPanel, CountryPanel, CountrySearch)
+│   ├── ui/                # UI components (ControlPanel, CountryPanel, CountrySearch)
+│   └── visualization/     # Data visualization (HeatmapLayer, Legend)
 ├── lib/
-│   └── geo/               # Geographic utilities (projections, morphing)
+│   ├── geo/               # Geographic utilities (projections, morphing)
+│   └── visualization/     # Visualization utilities (color scales, heatmap kernel)
 ├── store/                 # Zustand state management
 └── types/                 # TypeScript type definitions
 
@@ -104,6 +107,6 @@ MIT
 
 - [x] Day/night cycle animation
 - [x] Country search functionality
-- [ ] Data visualization overlays
+- [x] Data visualization overlays (Choropleth & Heatmap)
 - [ ] More map layers (topography, administrative)
 - [ ] Mobile touch optimizations

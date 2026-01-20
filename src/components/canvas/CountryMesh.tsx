@@ -4,7 +4,8 @@ import { useRef, useMemo, useCallback } from "react";
 import { useThree, useFrame, ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMapStore } from "@/store/mapStore";
-import { morphProgressRef, useDayNight } from "@/store/hooks";
+import { morphProgressRef, useDayNight, useChoropleth, useLayers } from "@/store/hooks";
+import { interpolateColor } from "@/lib/visualization/colorScales";
 import { featureToMorphableGeometry, createMorphableBufferGeometry, updateMorphProgress } from "@/lib/geo/morphing";
 import type { CountryFeature } from "@/types/geo";
 import "./MorphMaterial"; // Import to register the custom material
@@ -61,8 +62,22 @@ export function CountryMesh({ feature, index, sunDirection = DEFAULT_SUN_DIRECTI
 
   const { interaction, setHoveredFeature, selectCountry } = useMapStore();
   const { enableDayNight } = useDayNight();
+  const { activeLayers } = useLayers();
+  const { config: choroplethConfig, data: choroplethData } = useChoropleth();
 
   const featureId = feature.properties?.iso_a3 || `country-${index}`;
+
+  // Check if choropleth is active and get color from data
+  const choroplethColor = useMemo(() => {
+    if (!activeLayers.has("choropleth") || !choroplethConfig.enabled) {
+      return null;
+    }
+    const dataPoint = choroplethData.get(featureId);
+    if (!dataPoint) {
+      return choroplethConfig.nullColor;
+    }
+    return interpolateColor(dataPoint.value, choroplethConfig.colorScale);
+  }, [activeLayers, choroplethConfig, choroplethData, featureId]);
   const isHovered = interaction.hoveredFeatureId === featureId;
   const isSelected = interaction.selectedFeatureId === featureId;
 
@@ -142,8 +157,8 @@ export function CountryMesh({ feature, index, sunDirection = DEFAULT_SUN_DIRECTI
 
   if (!geometry) return null;
 
-  // Determine color based on state
-  const baseColor = getCountryColor(feature.properties?.continent, index);
+  // Determine color based on state (choropleth overrides continent color)
+  const baseColor = choroplethColor || getCountryColor(feature.properties?.continent, index);
   let color = baseColor;
   let emissive = "#000000";
   let emissiveIntensity = 0;

@@ -7,6 +7,7 @@ import { CountryMesh } from "./CountryMesh";
 import { CountryBorders } from "./CountryBorders";
 import { CountryLabels } from "./CountryLabels";
 import { PhysicalGlobe } from "./PhysicalGlobe";
+import { HeatmapLayer } from "@/components/visualization";
 import { useMapStore } from "@/store/mapStore";
 import type { CountryFeature } from "@/types/geo";
 
@@ -123,6 +124,9 @@ export function Globe({
           minZoom={2.5}
         />
       )}
+
+      {/* Heatmap visualization layer */}
+      <HeatmapLayer />
     </group>
   );
 }
