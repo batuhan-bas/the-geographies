@@ -165,8 +165,8 @@ export function createMorphableBufferGeometry(
  * This prevents distortion when projecting to sphere
  */
 function subdivideLargeTriangles(morphable: MorphableGeometry): MorphableGeometry {
-  const maxEdgeLength = 10; // Max degrees for an edge
-  const maxIterations = 4; // Prevent infinite loops
+  const maxEdgeLength = 5; // Max degrees for an edge (smaller = smoother on sphere)
+  const maxIterations = 5; // Prevent infinite loops
 
   let positions = [...morphable.positions];
   let indices = [...morphable.indices];

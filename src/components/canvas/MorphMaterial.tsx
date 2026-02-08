@@ -77,6 +77,17 @@ const MorphShaderMaterial = shaderMaterial(
         normal = -normal;
       }
 
+      // Flat mode blend factor
+      float flatBlend = smoothstep(0.3, 0.7, morphProgress);
+
+      // Flat mode: clean uniform color
+      if (flatBlend > 0.99) {
+        vec3 flatColor = color * 0.75 + emissive * emissiveIntensity;
+        flatColor = flatColor / (flatColor + vec3(0.5));
+        gl_FragColor = vec4(flatColor, 1.0);
+        return;
+      }
+
       // Calculate day/night factor
       float dayNightFactor = 1.0;
 
@@ -84,7 +95,6 @@ const MorphShaderMaterial = shaderMaterial(
         vec3 surfaceDir = normalize(vWorldPosition);
         float sunDot = dot(surfaceDir, sunDirection);
 
-        // Sharper transition for more dramatic effect
         float twilightWidth = 0.15;
         dayNightFactor = smoothstep(-twilightWidth, twilightWidth, sunDot);
       }
@@ -98,32 +108,34 @@ const MorphShaderMaterial = shaderMaterial(
       vec3 nightTint = vec3(0.02, 0.04, 0.12);
       vec3 nightColor = nightBase + nightTint;
 
-      // City lights effect on night side (subtle orange dots based on position)
+      // City lights effect on night side
       float cityNoise = fract(sin(dot(vWorldPosition.xy, vec2(12.9898, 78.233))) * 43758.5453);
       vec3 cityLights = vec3(1.0, 0.8, 0.4) * step(0.97, cityNoise) * 0.3 * (1.0 - dayNightFactor);
 
-      // Twilight glow - orange/red at the terminator
+      // Twilight glow
       float twilightGlow = smoothstep(0.0, 0.3, dayNightFactor) * (1.0 - smoothstep(0.3, 0.6, dayNightFactor));
       vec3 twilightColor = vec3(1.0, 0.4, 0.2) * twilightGlow * 0.15;
 
       // Mix day and night
-      vec3 baseColor = mix(nightColor, dayColor, dayNightFactor);
-
-      // Add effects
-      baseColor += cityLights + twilightColor;
+      vec3 globeColor = mix(nightColor, dayColor, dayNightFactor);
+      globeColor += cityLights + twilightColor;
 
       // Rim light for atmosphere effect
       float rim = 1.0 - max(dot(viewDir, normal), 0.0);
       vec3 rimLight = vec3(0.3, 0.5, 1.0) * pow(rim, 3.0) * 0.15 * (1.0 - dayNightFactor);
-      baseColor += rimLight;
+      globeColor += rimLight;
 
       // Emissive for hover/selection
-      baseColor += emissive * emissiveIntensity;
+      globeColor += emissive * emissiveIntensity;
 
       // Tone mapping
-      baseColor = baseColor / (baseColor + vec3(0.5));
+      globeColor = globeColor / (globeColor + vec3(0.5));
 
-      gl_FragColor = vec4(baseColor, 1.0);
+      // Smooth transition to flat
+      vec3 flatColor = color * 0.75 + emissive * emissiveIntensity;
+      flatColor = flatColor / (flatColor + vec3(0.5));
+
+      gl_FragColor = vec4(mix(globeColor, flatColor, flatBlend), 1.0);
     }
   `
 );

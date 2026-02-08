@@ -174,6 +174,17 @@ export function PhysicalGlobe({
 
         void main() {
           vec4 texColor = texture2D(dayMap, vUv);
+
+          // Flat mode: show clean texture with gentle lighting
+          float flatBlend = smoothstep(0.3, 0.7, morphProgress);
+          if (flatBlend > 0.99) {
+            // Pure flat mode - uniform soft lighting on texture
+            vec3 flatColor = texColor.rgb * 0.85;
+            flatColor = flatColor / (flatColor + vec3(0.6));
+            gl_FragColor = vec4(flatColor, 1.0);
+            return;
+          }
+
           vec3 normal = normalize(vNormal);
 
           if (!gl_FrontFacing) {
@@ -185,7 +196,6 @@ export function PhysicalGlobe({
           if (enableDayNight && morphProgress < 0.5) {
             vec3 surfaceDir = normalize(vWorldPosition);
             float sunDot = dot(surfaceDir, sunDirection);
-            // Sharper terminator line
             dayNightFactor = smoothstep(-0.1, 0.15, sunDot);
           }
 
@@ -198,11 +208,11 @@ export function PhysicalGlobe({
 
           // City lights simulation
           float cityNoise = fract(sin(dot(vUv * 100.0, vec2(12.9898, 78.233))) * 43758.5453);
-          float landMask = step(0.3, texColor.g - texColor.b * 0.5); // Rough land detection
+          float landMask = step(0.3, texColor.g - texColor.b * 0.5);
           vec3 cityLights = vec3(1.0, 0.9, 0.5) * step(0.985, cityNoise) * landMask * 0.5;
           cityLights *= (1.0 - dayNightFactor);
 
-          // Twilight band - orange glow at terminator
+          // Twilight band
           float twilightBand = smoothstep(0.0, 0.25, dayNightFactor) * (1.0 - smoothstep(0.25, 0.5, dayNightFactor));
           vec3 twilightGlow = vec3(1.0, 0.5, 0.2) * twilightBand * 0.2;
 
@@ -210,12 +220,16 @@ export function PhysicalGlobe({
           float fresnel = pow(1.0 - max(dot(normalize(-vWorldPosition), normal), 0.0), 3.0);
           vec3 atmosphereRim = vec3(0.2, 0.4, 1.0) * fresnel * 0.2 * (1.0 - dayNightFactor);
 
-          // Combine
-          vec3 finalColor = mix(nightColor, dayColor, dayNightFactor);
-          finalColor += cityLights + twilightGlow + atmosphereRim;
+          // Combine globe lighting
+          vec3 globeColor = mix(nightColor, dayColor, dayNightFactor);
+          globeColor += cityLights + twilightGlow + atmosphereRim;
+          globeColor = globeColor / (globeColor + vec3(0.6));
 
-          // Subtle tone mapping
-          finalColor = finalColor / (finalColor + vec3(0.6));
+          // Smooth transition: globe lighting → flat clean texture
+          vec3 flatColor = texColor.rgb * 0.85;
+          flatColor = flatColor / (flatColor + vec3(0.6));
+
+          vec3 finalColor = mix(globeColor, flatColor, flatBlend);
 
           gl_FragColor = vec4(finalColor, 1.0);
         }

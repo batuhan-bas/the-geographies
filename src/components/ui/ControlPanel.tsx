@@ -9,10 +9,11 @@ import type { MapLayer } from "@/types/geo";
 // Layer Configuration
 // ==========================================
 
-const LAYERS: { id: MapLayer; label: string; icon: React.ReactNode }[] = [
+const LAYERS: { id: MapLayer; label: string; icon: React.ReactNode; requires?: MapLayer }[] = [
   { id: "political", label: "Political", icon: <FlagIcon className="w-4 h-4" /> },
   { id: "physical", label: "Physical", icon: <MountainIcon className="w-4 h-4" /> },
-  { id: "choropleth", label: "Data", icon: <ChartIcon className="w-4 h-4" /> },
+  { id: "topography", label: "Topography", icon: <ContourIcon className="w-4 h-4" /> },
+  { id: "choropleth", label: "Data", icon: <ChartIcon className="w-4 h-4" />, requires: "political" },
   { id: "heatmap", label: "Heatmap", icon: <FlameIcon className="w-4 h-4" /> },
 ];
 
@@ -140,7 +141,7 @@ function LayersSection() {
         Layers
       </div>
       <div className="space-y-1">
-        {LAYERS.map((layer) => (
+        {LAYERS.filter((layer) => !layer.requires || activeLayers.has(layer.requires)).map((layer) => (
           <LayerButton
             key={layer.id}
             icon={layer.icon}
@@ -308,6 +309,16 @@ function SunMoonIcon({ className }: { className?: string }) {
       <path d="M20 12h2" />
       <path d="m6.34 17.66-1.41 1.41" />
       <path d="m19.07 4.93-1.41 1.41" />
+    </svg>
+  );
+}
+
+function ContourIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10" />
+      <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6" />
+      <path d="M12 10a2 2 0 0 0-2 2 2 2 0 0 0 2 2" />
     </svg>
   );
 }

@@ -7,6 +7,7 @@ import { CountryMesh } from "./CountryMesh";
 import { CountryBorders } from "./CountryBorders";
 import { CountryLabels } from "./CountryLabels";
 import { PhysicalGlobe } from "./PhysicalGlobe";
+import { TopographyLayer } from "./TopographyLayer";
 import { HeatmapLayer } from "@/components/visualization";
 import { useMapStore } from "@/store/mapStore";
 import type { CountryFeature } from "@/types/geo";
@@ -53,6 +54,8 @@ export function Globe({
   });
 
   const showPhysical = activeLayers.has("physical");
+  const showTopography = activeLayers.has("topography");
+
   const showPolitical = activeLayers.has("political");
   const isGlobeMode = morphProgress < 0.5;
 
@@ -71,6 +74,13 @@ export function Globe({
       {showPhysical && (
         <Suspense fallback={null}>
           <PhysicalGlobe morphProgress={morphProgress} sunDirection={sunDirection} />
+        </Suspense>
+      )}
+
+      {/* Topography layer (between physical and political) */}
+      {showTopography && (
+        <Suspense fallback={null}>
+          <TopographyLayer morphProgress={morphProgress} />
         </Suspense>
       )}
 

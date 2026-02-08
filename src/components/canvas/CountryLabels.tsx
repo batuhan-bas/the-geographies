@@ -89,7 +89,7 @@ function CountryLabel({
 
     // Dot product: >0 means facing camera, <0 means facing away
     const dot = cameraDir.dot(labelDir);
-    setIsVisible(dot > 0.1); // Small threshold to hide labels at the edge
+    setIsVisible(dot > 0.3); // Hide labels well before the edge to prevent clipping
   });
 
   if (!isVisible) return null;
