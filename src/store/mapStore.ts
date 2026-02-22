@@ -1,7 +1,14 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type { MapStore, MapState } from "@/types/map";
-import type { ViewMode, MapLayer, CountryFeature, CameraState, RealtimeDataPoint, LODLevel } from "@/types/geo";
+import type {
+  ViewMode,
+  MapLayer,
+  CountryFeature,
+  CameraState,
+  RealtimeDataPoint,
+  LODLevel,
+} from "@/types/geo";
 
 // ==========================================
 // Initial State
@@ -138,11 +145,12 @@ export const useMapStore = create<MapStore>()(
 
     // Panel
     openPanel: () => set({ isPanelOpen: true }),
-    closePanel: () => set((state) => ({
-      isPanelOpen: false,
-      selectedCountry: null,
-      interaction: { ...state.interaction, selectedFeatureId: null },
-    })),
+    closePanel: () =>
+      set((state) => ({
+        isPanelOpen: false,
+        selectedCountry: null,
+        interaction: { ...state.interaction, selectedFeatureId: null },
+      })),
     togglePanel: () => set((state) => ({ isPanelOpen: !state.isPanelOpen })),
 
     // Data
@@ -163,7 +171,7 @@ export const useMapStore = create<MapStore>()(
     clearRealtimeData: () => {
       set({ realtimeData: [] });
     },
-  }))
+  })),
 );
 
 // ==========================================

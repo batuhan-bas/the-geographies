@@ -5,7 +5,7 @@ import type {
   RealtimeDataPoint,
   CameraState,
   InteractionState,
-  LODLevel
+  LODLevel,
 } from "./geo";
 
 // ==========================================

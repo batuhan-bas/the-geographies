@@ -18,8 +18,10 @@ interface CountryBordersProps {
  * Extract border coordinates from a country feature
  */
 function extractBorderRings(feature: CountryFeature): Position[][] {
-  const geometry = feature.geometry;
-  if (!geometry) return [];
+  const { geometry } = feature;
+  if (!geometry) {
+    return [];
+  }
 
   const rings: Position[][] = [];
 
@@ -55,7 +57,7 @@ function ringToPoints(ring: Position[], morphProgress: number): THREE.Vector3[] 
 /**
  * Single border line component
  */
-function BorderLine({
+const BorderLine = ({
   ring,
   morphProgress,
   color,
@@ -65,34 +67,25 @@ function BorderLine({
   morphProgress: number;
   color: string;
   opacity: number;
-}) {
-  const points = useMemo(
-    () => ringToPoints(ring, morphProgress),
-    [ring, morphProgress]
-  );
+}) => {
+  const points = useMemo(() => ringToPoints(ring, morphProgress), [ring, morphProgress]);
 
-  if (points.length < 3) return null;
+  if (points.length < 3) {
+    return null;
+  }
 
-  return (
-    <Line
-      points={points}
-      color={color}
-      lineWidth={0.5}
-      opacity={opacity}
-      transparent
-    />
-  );
-}
+  return <Line points={points} color={color} lineWidth={0.5} opacity={opacity} transparent />;
+};
 
 /**
  * All country borders
  */
-export function CountryBorders({
+export const CountryBorders = ({
   countries,
   morphProgress,
   color = "#ffffff",
   opacity = 0.15,
-}: CountryBordersProps) {
+}: CountryBordersProps) => {
   // Extract all border rings from all countries
   const allRings = useMemo(() => {
     const rings: Position[][] = [];
@@ -115,6 +108,6 @@ export function CountryBorders({
       ))}
     </group>
   );
-}
+};
 
 export default CountryBorders;

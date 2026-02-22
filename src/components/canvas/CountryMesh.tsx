@@ -1,12 +1,16 @@
 "use client";
 
 import { useRef, useMemo, useCallback } from "react";
-import { useThree, useFrame, ThreeEvent } from "@react-three/fiber";
+import { useThree, useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMapStore } from "@/store/mapStore";
 import { morphProgressRef, useDayNight, useChoropleth, useLayers } from "@/store/hooks";
 import { interpolateColor } from "@/lib/visualization/colorScales";
-import { featureToMorphableGeometry, createMorphableBufferGeometry, updateMorphProgress } from "@/lib/geo/morphing";
+import {
+  featureToMorphableGeometry,
+  createMorphableBufferGeometry,
+  updateMorphProgress,
+} from "@/lib/geo/morphing";
 import type { CountryFeature } from "@/types/geo";
 import "./MorphMaterial"; // Import to register the custom material
 
@@ -16,24 +20,17 @@ import "./MorphMaterial"; // Import to register the custom material
 
 // Continent-based color palette with warmer, more vibrant colors
 const CONTINENT_COLORS: Record<string, string> = {
-  "Europe": "#5d9b6b",      // Sage green
-  "Asia": "#d4a574",        // Warm sand/terracotta
-  "Africa": "#e8a83c",      // Golden amber
+  Europe: "#5d9b6b", // Sage green
+  Asia: "#d4a574", // Warm sand/terracotta
+  Africa: "#e8a83c", // Golden amber
   "North America": "#7eb5a6", // Teal green
   "South America": "#6bc268", // Fresh green
-  "Oceania": "#c287a5",     // Dusty rose
-  "Antarctica": "#b8c4ce",  // Ice blue-gray
-  "Unknown": "#8a9a8a",     // Neutral sage
+  Oceania: "#c287a5", // Dusty rose
+  Antarctica: "#b8c4ce", // Ice blue-gray
+  Unknown: "#8a9a8a", // Neutral sage
 };
 
-const FALLBACK_COLORS = [
-  "#7eb5a6",
-  "#6bc268",
-  "#d4a574",
-  "#e8a83c",
-  "#c287a5",
-  "#5d9b6b",
-];
+const FALLBACK_COLORS = ["#7eb5a6", "#6bc268", "#d4a574", "#e8a83c", "#c287a5", "#5d9b6b"];
 
 function getCountryColor(continent: string | undefined, index: number): string {
   if (continent && CONTINENT_COLORS[continent]) {
@@ -55,7 +52,11 @@ interface CountryMeshProps {
   sunDirection?: THREE.Vector3;
 }
 
-export function CountryMesh({ feature, index, sunDirection = DEFAULT_SUN_DIRECTION }: CountryMeshProps) {
+export const CountryMesh = ({
+  feature,
+  index,
+  sunDirection = DEFAULT_SUN_DIRECTION,
+}: CountryMeshProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const { camera } = useThree();
@@ -84,7 +85,9 @@ export function CountryMesh({ feature, index, sunDirection = DEFAULT_SUN_DIRECTI
   // Create morphable geometry ONCE
   const geometry = useMemo(() => {
     const morphableData = featureToMorphableGeometry(feature);
-    if (!morphableData) return null;
+    if (!morphableData) {
+      return null;
+    }
     return createMorphableBufferGeometry(morphableData, 0);
   }, [feature]);
 
@@ -114,48 +117,65 @@ export function CountryMesh({ feature, index, sunDirection = DEFAULT_SUN_DIRECTI
 
   // Check if the intersection is on the front-facing side (visible to camera)
   // Only relevant in globe mode - in flat mode all faces are front-facing
-  const isFrontFacing = useCallback((event: ThreeEvent<PointerEvent | MouseEvent>) => {
-    // In flat mode, always consider front-facing
-    if (!isGlobeMode) return true;
+  const isFrontFacing = useCallback(
+    (event: ThreeEvent<PointerEvent | MouseEvent>) => {
+      // In flat mode, always consider front-facing
+      if (!isGlobeMode) {
+        return true;
+      }
 
-    if (!event.face || !event.point) return false;
+      if (!event.face || !event.point) {
+        return false;
+      }
 
-    // Get the direction from hit point to camera
-    const toCamera = new THREE.Vector3();
-    toCamera.subVectors(camera.position, event.point).normalize();
+      // Get the direction from hit point to camera
+      const toCamera = new THREE.Vector3();
+      toCamera.subVectors(camera.position, event.point).normalize();
 
-    // Check if face normal points towards camera (dot product > 0 means front-facing)
-    const faceNormal = event.face.normal.clone();
+      // Check if face normal points towards camera (dot product > 0 means front-facing)
+      const faceNormal = event.face.normal.clone();
 
-    // Transform normal to world space if mesh has rotation
-    if (meshRef.current) {
-      faceNormal.applyMatrix3(new THREE.Matrix3().getNormalMatrix(meshRef.current.matrixWorld));
-    }
+      // Transform normal to world space if mesh has rotation
+      if (meshRef.current) {
+        faceNormal.applyMatrix3(new THREE.Matrix3().getNormalMatrix(meshRef.current.matrixWorld));
+      }
 
-    return faceNormal.dot(toCamera) > 0;
-  }, [camera, isGlobeMode]);
+      return faceNormal.dot(toCamera) > 0;
+    },
+    [camera, isGlobeMode],
+  );
 
   // Event handlers - only trigger if front-facing
-  const handlePointerEnter = useCallback((event: ThreeEvent<PointerEvent>) => {
-    if (!isFrontFacing(event)) return;
-    setHoveredFeature(featureId);
-    document.body.style.cursor = "pointer";
-  }, [isFrontFacing, featureId, setHoveredFeature]);
+  const handlePointerEnter = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      if (!isFrontFacing(event)) {
+        return;
+      }
+      setHoveredFeature(featureId);
+      document.body.style.cursor = "pointer";
+    },
+    [isFrontFacing, featureId, setHoveredFeature],
+  );
 
   const handlePointerLeave = useCallback(() => {
     setHoveredFeature(null);
     document.body.style.cursor = "auto";
   }, [setHoveredFeature]);
 
-  const handleClick = useCallback((event: ThreeEvent<MouseEvent>) => {
-    if (!isFrontFacing(event)) {
-      event.stopPropagation();
-      return;
-    }
-    selectCountry(feature);
-  }, [isFrontFacing, feature, selectCountry]);
+  const handleClick = useCallback(
+    (event: ThreeEvent<MouseEvent>) => {
+      if (!isFrontFacing(event)) {
+        event.stopPropagation();
+        return;
+      }
+      selectCountry(feature);
+    },
+    [isFrontFacing, feature, selectCountry],
+  );
 
-  if (!geometry) return null;
+  if (!geometry) {
+    return null;
+  }
 
   // Determine color based on state (choropleth overrides continent color)
   const baseColor = choroplethColor || getCountryColor(feature.properties?.continent, index);
@@ -193,6 +213,6 @@ export function CountryMesh({ feature, index, sunDirection = DEFAULT_SUN_DIRECTI
       />
     </mesh>
   );
-}
+};
 
 export default CountryMesh;

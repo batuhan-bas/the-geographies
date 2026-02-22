@@ -22,7 +22,7 @@ export function useViewMode() {
       viewMode: state.viewMode,
       setViewMode: state.setViewMode,
       toggleViewMode: state.toggleViewMode,
-    }))
+    })),
   );
 }
 
@@ -36,7 +36,7 @@ export function useMorphAnimation() {
       isAnimating: state.isAnimating,
       setMorphProgress: state.setMorphProgress,
       setIsAnimating: state.setIsAnimating,
-    }))
+    })),
   );
 }
 
@@ -49,7 +49,7 @@ export function useLayers() {
       activeLayers: state.activeLayers,
       toggleLayer: state.toggleLayer,
       setActiveLayers: state.setActiveLayers,
-    }))
+    })),
   );
 }
 
@@ -65,7 +65,7 @@ export function useCountrySelection() {
       openPanel: state.openPanel,
       closePanel: state.closePanel,
       togglePanel: state.togglePanel,
-    }))
+    })),
   );
 }
 
@@ -78,7 +78,7 @@ export function useInteraction() {
       interaction: state.interaction,
       setHoveredFeature: state.setHoveredFeature,
       setSelectedFeature: state.setSelectedFeature,
-    }))
+    })),
   );
 }
 
@@ -92,7 +92,7 @@ export function useCamera() {
       updateCamera: state.updateCamera,
       focusOnCountry: state.focusOnCountry,
       resetCamera: state.resetCamera,
-    }))
+    })),
   );
 }
 
@@ -106,7 +106,7 @@ export function useRealtimeData() {
       addRealtimeData: state.addRealtimeData,
       updateRealtimeData: state.updateRealtimeData,
       clearRealtimeData: state.clearRealtimeData,
-    }))
+    })),
   );
 }
 
@@ -133,7 +133,7 @@ export function useDayNight() {
       enableDayNight: state.enableDayNight,
       setEnableDayNight: state.setEnableDayNight,
       toggleDayNight: state.toggleDayNight,
-    }))
+    })),
   );
 }
 
@@ -159,7 +159,7 @@ export function useChoropleth() {
       setConfig: state.setChoroplethConfig,
       setData: state.setChoroplethData,
       clearData: state.clearChoroplethData,
-    }))
+    })),
   );
 }
 
@@ -175,6 +175,6 @@ export function useHeatmap() {
       setPoints: state.setHeatmapPoints,
       addPoint: state.addHeatmapPoint,
       clear: state.clearHeatmap,
-    }))
+    })),
   );
 }

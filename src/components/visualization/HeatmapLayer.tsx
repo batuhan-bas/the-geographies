@@ -23,7 +23,7 @@ const FLAT_Z_OFFSET = 0.005;
 // HeatmapLayer Component
 // ==========================================
 
-export function HeatmapLayer() {
+export const HeatmapLayer = () => {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const { config, points } = useHeatmap();
@@ -31,7 +31,9 @@ export function HeatmapLayer() {
 
   // Compute density texture when points change
   const texture = useMemo(() => {
-    if (points.length === 0) return null;
+    if (points.length === 0) {
+      return null;
+    }
     return computeHeatmapTexture(points, config);
   }, [points, config.radius, config.resolution, config.blur, config.maxIntensity]);
 
@@ -69,14 +71,14 @@ export function HeatmapLayer() {
         spherePositions.push(
           -radius * Math.sin(phi) * Math.cos(theta),
           radius * Math.cos(phi),
-          radius * Math.sin(phi) * Math.sin(theta)
+          radius * Math.sin(phi) * Math.sin(theta),
         );
 
         // Flat position
         flatPositions.push(
           (longitude / 180) * FLAT_SCALE,
           (latitude / 90) * FLAT_SCALE * 0.5,
-          FLAT_Z_OFFSET
+          FLAT_Z_OFFSET,
         );
 
         // UV - must match kernel coordinates exactly
@@ -100,18 +102,9 @@ export function HeatmapLayer() {
       }
     }
 
-    geo.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(spherePositions, 3)
-    );
-    geo.setAttribute(
-      "spherePosition",
-      new THREE.Float32BufferAttribute(spherePositions, 3)
-    );
-    geo.setAttribute(
-      "flatPosition",
-      new THREE.Float32BufferAttribute(flatPositions, 3)
-    );
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(spherePositions, 3));
+    geo.setAttribute("spherePosition", new THREE.Float32BufferAttribute(spherePositions, 3));
+    geo.setAttribute("flatPosition", new THREE.Float32BufferAttribute(flatPositions, 3));
     geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
     geo.setIndex(indices);
     geo.computeVertexNormals();
@@ -127,7 +120,7 @@ export function HeatmapLayer() {
       1,
       1,
       THREE.RedFormat,
-      THREE.UnsignedByteType
+      THREE.UnsignedByteType,
     );
     emptyTexture.needsUpdate = true;
 
@@ -192,19 +185,13 @@ export function HeatmapLayer() {
   // Update morph progress every frame
   useFrame(() => {
     if (materialRef.current) {
-      materialRef.current.uniforms.morphProgress.value =
-        morphProgressRef.current;
+      materialRef.current.uniforms.morphProgress.value = morphProgressRef.current;
       materialRef.current.uniforms.opacity.value = config.opacity;
     }
   });
 
   // Don't render if layer is not active or no data
-  if (
-    !activeLayers.has("heatmap") ||
-    !config.enabled ||
-    points.length === 0 ||
-    !texture
-  ) {
+  if (!activeLayers.has("heatmap") || !config.enabled || points.length === 0 || !texture) {
     return null;
   }
 
@@ -213,6 +200,6 @@ export function HeatmapLayer() {
       <primitive object={shaderMaterial} ref={materialRef} attach="material" />
     </mesh>
   );
-}
+};
 
 export default HeatmapLayer;

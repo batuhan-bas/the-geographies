@@ -59,13 +59,13 @@ export async function loadCountriesFromGeoJSON(): Promise<CountryFeature[]> {
           geometry: feature.geometry,
           properties: {
             // Basic info
-            name: name,
+            name,
             name_long: props.NAME_LONG || name,
             formal_name: props.FORMAL_EN,
 
             // ISO codes
-            iso_a2: iso_a2,
-            iso_a3: iso_a3,
+            iso_a2,
+            iso_a3,
 
             // Geographic
             continent: props.CONTINENT || "Unknown",

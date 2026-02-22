@@ -1,205 +1,223 @@
 "use client";
 
-import { useMemo } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
 import { Text, Billboard } from "@react-three/drei";
 import * as THREE from "three";
 import type { CountryFeature } from "@/types/geo";
 import { geoToSphere, geoToFlat, GLOBE_RADIUS } from "@/lib/geo/coordinates";
 import { getFeatureCentroid } from "@/lib/geo/projections";
-import { useState } from "react";
 
 interface CountryLabelsProps {
   countries: CountryFeature[];
   morphProgress: number;
-  minZoom?: number; // Minimum zoom level to show labels
+  minZoom?: number;
 }
 
 interface LabelData {
   name: string;
   iso: string;
-  position: THREE.Vector3;
-  scale: number;
-  population: number; // For sorting by importance
+  spherePos: THREE.Vector3;
+  flatPos: THREE.Vector3;
+  population: number;
 }
 
-/**
- * Calculate label position and scale based on morph progress
- */
-function calculateLabelData(
-  feature: CountryFeature,
-  morphProgress: number
-): LabelData | null {
+function calculateLabelData(feature: CountryFeature): LabelData | null {
   const centroid = getFeatureCentroid(feature);
-  if (!centroid) return null;
+  if (!centroid) {
+    return null;
+  }
 
   const name = feature.properties?.name || "";
   const iso = feature.properties?.iso_a3 || "";
   const population = feature.properties?.pop_est || 0;
 
-  if (!name) return null;
+  if (!name) {
+    return null;
+  }
 
-  // Calculate position
   const sphere = geoToSphere(centroid.longitude, centroid.latitude, GLOBE_RADIUS * 1.02);
   const flat = geoToFlat(centroid.longitude, centroid.latitude);
-
-  const x = sphere.x + (flat.x - sphere.x) * morphProgress;
-  const y = sphere.y + (flat.y - sphere.y) * morphProgress;
-  const z = sphere.z + (flat.z - sphere.z) * morphProgress;
 
   return {
     name,
     iso,
-    position: new THREE.Vector3(x, y, z + 0.02),
-    scale: 0.025, // Base scale, will be adjusted based on zoom
+    spherePos: new THREE.Vector3(sphere.x, sphere.y, sphere.z),
+    flatPos: new THREE.Vector3(flat.x, flat.y, flat.z + 0.02),
     population,
   };
 }
 
 /**
- * Single country label with dynamic sizing
- * Hides when facing away from camera (for globe mode)
+ * Single country label — uses ref-based visibility to avoid re-renders
  */
-function CountryLabel({
+const CountryLabel = ({
   data,
-  fontSize,
-  opacity,
   morphProgress,
+  zoomRef,
 }: {
   data: LabelData;
-  fontSize: number;
-  opacity: number;
   morphProgress: number;
-}) {
+  zoomRef: React.RefObject<{ zoom: number }>;
+}) => {
   const { camera } = useThree();
-  const [isVisible, setIsVisible] = useState(true);
+  const textRef = useRef<THREE.Object3D>(null);
+  const billboardRef = useRef<THREE.Group>(null);
+  const lastVisible = useRef(true);
 
-  // Check visibility based on camera direction (for globe mode)
   useFrame(() => {
-    if (morphProgress > 0.5) {
-      // Flat mode - always visible
-      setIsVisible(true);
+    if (!billboardRef.current) {
       return;
     }
 
-    // Globe mode - check if label is facing the camera
-    const labelPos = data.position.clone();
-    const cameraDir = camera.position.clone().normalize();
-    const labelDir = labelPos.clone().normalize();
+    const zoom = zoomRef.current?.zoom ?? 3.5;
 
-    // Dot product: >0 means facing camera, <0 means facing away
-    const dot = cameraDir.dot(labelDir);
-    setIsVisible(dot > 0.3); // Hide labels well before the edge to prevent clipping
+    // Interpolate position
+    const x = data.spherePos.x + (data.flatPos.x - data.spherePos.x) * morphProgress;
+    const y = data.spherePos.y + (data.flatPos.y - data.spherePos.y) * morphProgress;
+    const z = data.spherePos.z + (data.flatPos.z - data.spherePos.z) * morphProgress;
+    billboardRef.current.position.set(x, y, z);
+
+    // Globe mode visibility check
+    if (morphProgress < 0.5) {
+      const cameraDir = camera.position.clone().normalize();
+      const labelDir = billboardRef.current.position.clone().normalize();
+      const dot = cameraDir.dot(labelDir);
+
+      const visible = dot > 0.5;
+      if (visible !== lastVisible.current) {
+        billboardRef.current.visible = visible;
+        lastVisible.current = visible;
+      }
+
+      // Edge fade
+      if (visible && textRef.current) {
+        const edgeOpacity = Math.min(1, Math.max(0, (dot - 0.5) / 0.25));
+        const mat = (textRef.current as unknown as { material: THREE.Material }).material;
+        if (mat) {
+          mat.opacity = edgeOpacity;
+        }
+      }
+    } else {
+      if (!lastVisible.current) {
+        billboardRef.current.visible = true;
+        lastVisible.current = true;
+      }
+      if (textRef.current) {
+        const mat = (textRef.current as unknown as { material: THREE.Material }).material;
+        if (mat) {
+          mat.opacity = 1;
+        }
+      }
+    }
+
+    // Scale font to maintain roughly consistent screen size across zoom levels.
+    // Camera approaches globe surface (radius ~1), so effective distance = zoom - 1.
+    // Clamp to avoid extreme scaling at very close or very far zoom.
+    const effectiveDistance = Math.max(0.3, zoom - 1.0);
+    const scale = effectiveDistance / 2.5;
+    billboardRef.current.scale.setScalar(Math.max(0.3, Math.min(2.0, scale)));
   });
 
-  if (!isVisible) return null;
-
   return (
-    <Billboard
-      follow={true}
-      lockX={false}
-      lockY={false}
-      lockZ={false}
-      position={data.position}
-    >
+    <Billboard ref={billboardRef} follow lockX={false} lockY={false} lockZ={false}>
       <Text
-        fontSize={fontSize}
+        ref={textRef as React.RefObject<THREE.Object3D>}
+        fontSize={0.022}
         color="#ffffff"
         anchorX="center"
         anchorY="middle"
-        outlineWidth={fontSize * 0.08}
+        outlineWidth={0.0018}
         outlineColor="#000000"
-        fillOpacity={opacity}
+        maxWidth={0.3}
+        {...({ depthTest: false, renderOrder: 100 } as Record<string, unknown>)}
       >
         {data.name}
       </Text>
     </Billboard>
   );
-}
+};
 
 /**
  * All country labels with zoom-based visibility
  */
-export function CountryLabels({
-  countries,
-  morphProgress,
-}: CountryLabelsProps) {
+export const CountryLabels = ({ countries, morphProgress }: CountryLabelsProps) => {
   const { camera } = useThree();
-  const [zoomLevel, setZoomLevel] = useState(camera.position.length());
+  const zoomRef = useRef({ zoom: camera.position.length() });
+  const prevCount = useRef(0);
+  const countRef = useRef(0);
 
-  // Update zoom level each frame
+  // Pre-calculate all label data sorted by population
+  const labelsData = useMemo(
+    () =>
+      countries
+        .map((country) => calculateLabelData(country))
+        .filter((data): data is LabelData => data !== null)
+        .sort((a, b) => b.population - a.population),
+    [countries],
+  );
+
+  // Update zoom + label count via ref (no re-render)
   useFrame(() => {
-    const newZoom = camera.position.length();
-    if (Math.abs(newZoom - zoomLevel) > 0.01) {
-      setZoomLevel(newZoom);
+    const zoom = camera.position.length();
+    zoomRef.current.zoom = zoom;
+
+    const isGlobeMode = morphProgress < 0.5;
+
+    // Determine how many labels to show based on zoom
+    let numLabels: number;
+    if (isGlobeMode) {
+      if (zoom > 5.0) {
+        numLabels = 20;
+      } else if (zoom > 4.0) {
+        numLabels = 50;
+      } else {
+        numLabels = labelsData.length;
+      }
+    } else {
+      if (zoom > 4.5) {
+        numLabels = 20;
+      } else if (zoom > 3.5) {
+        numLabels = 60;
+      } else {
+        numLabels = labelsData.length;
+      }
+    }
+
+    countRef.current = Math.min(numLabels, labelsData.length);
+  });
+
+  // We need to trigger a re-render when label count changes meaningfully
+  // Use a state that only updates when the count tier changes
+  const [countTier, setCountTier] = useState(0);
+
+  useFrame(() => {
+    const newCount = countRef.current;
+    if (newCount !== prevCount.current) {
+      prevCount.current = newCount;
+      // Map to tiers to avoid too many re-renders
+      const tier = newCount <= 20 ? 0 : newCount <= 50 ? 1 : newCount <= 60 ? 2 : 3;
+      setCountTier(tier);
     }
   });
 
-  // Calculate label data for all countries, sorted by population
-  const labelsData = useMemo(() => {
-    return countries
-      .map((country) => calculateLabelData(country, morphProgress))
-      .filter((data): data is LabelData => data !== null)
-      .sort((a, b) => b.population - a.population); // Largest populations first
-  }, [countries, morphProgress]);
-
-  // Determine how many labels to show based on zoom and mode
-  const { visibleLabels, fontSize, opacity } = useMemo(() => {
-    const isGlobeMode = morphProgress < 0.5;
-
-    // Different thresholds for globe vs flat mode
-    const farZoom = isGlobeMode ? 4.0 : 3.5;
-    const midZoom = isGlobeMode ? 2.5 : 2.0;
-    const closeZoom = isGlobeMode ? 1.8 : 1.2;
-
-    let numLabels: number;
-    let size: number;
-    let alpha: number;
-
-    if (zoomLevel > farZoom) {
-      // Very far - show major countries
-      numLabels = isGlobeMode ? 25 : 15;
-      size = isGlobeMode ? 0.025 : 0.035;
-      alpha = 0.8;
-    } else if (zoomLevel > midZoom) {
-      // Medium distance
-      const t = (farZoom - zoomLevel) / (farZoom - midZoom);
-      numLabels = Math.floor((isGlobeMode ? 25 : 15) + t * (isGlobeMode ? 40 : 35));
-      size = isGlobeMode ? 0.022 + t * 0.008 : 0.03 + t * 0.01;
-      alpha = 0.8 + t * 0.15;
-    } else if (zoomLevel > closeZoom) {
-      // Closer
-      const t = (midZoom - zoomLevel) / (midZoom - closeZoom);
-      numLabels = Math.floor((isGlobeMode ? 65 : 50) + t * (labelsData.length - (isGlobeMode ? 65 : 50)));
-      size = isGlobeMode ? 0.03 - t * 0.01 : 0.04 - t * 0.015;
-      alpha = 0.95;
-    } else {
-      // Very close - show all
-      numLabels = labelsData.length;
-      size = isGlobeMode ? 0.02 : 0.025;
-      alpha = 1.0;
-    }
-
-    return {
-      visibleLabels: labelsData.slice(0, Math.min(numLabels, labelsData.length)),
-      fontSize: size,
-      opacity: alpha,
-    };
-  }, [labelsData, zoomLevel, morphProgress]);
+  const visibleLabels = useMemo(() => {
+    const counts = [20, 50, 60, labelsData.length];
+    return labelsData.slice(0, counts[countTier] ?? labelsData.length);
+  }, [labelsData, countTier]);
 
   return (
-    <group>
-      {visibleLabels.map((data) => (
+    <group renderOrder={100}>
+      {visibleLabels.map((data, index) => (
         <CountryLabel
-          key={data.iso}
+          key={data.iso && data.iso !== "-99" ? data.iso : `label-${index}`}
           data={data}
-          fontSize={fontSize}
-          opacity={opacity}
           morphProgress={morphProgress}
+          zoomRef={zoomRef}
         />
       ))}
     </group>
   );
-}
+};
 
 export default CountryLabels;

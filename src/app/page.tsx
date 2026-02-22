@@ -27,7 +27,7 @@ const MapCanvas = dynamic(
         </div>
       </div>
     ),
-  }
+  },
 );
 
 // Demo data for visualization
@@ -42,12 +42,12 @@ function generateDemoData(countries: CountryFeature[]) {
 
   // Heatmap: Clustered around populated areas
   const heatmapCenters = [
-    { longitude: -74, latitude: 40 },   // US East Coast
-    { longitude: -118, latitude: 34 },  // US West Coast
-    { longitude: 0, latitude: 51 },     // Europe
-    { longitude: 116, latitude: 35 },   // East Asia
-    { longitude: 77, latitude: 20 },    // India
-    { longitude: -46, latitude: -23 },  // South America
+    { longitude: -74, latitude: 40 }, // US East Coast
+    { longitude: -118, latitude: 34 }, // US West Coast
+    { longitude: 0, latitude: 51 }, // Europe
+    { longitude: 116, latitude: 35 }, // East Asia
+    { longitude: 77, latitude: 20 }, // India
+    { longitude: -46, latitude: -23 }, // South America
   ];
   const heatmapPoints = generateClusteredHeatmapPoints(heatmapCenters, 30, 15, [0.3, 1]);
 
@@ -65,7 +65,7 @@ export default function HomePage() {
   const setHeatmapPoints = useVisualizationStore((state) => state.setHeatmapPoints);
 
   useEffect(() => {
-    loadCountriesFromTopoJSON().then((data) => {
+    void loadCountriesFromTopoJSON().then((data) => {
       setCountries(data);
       setStoreCountries(data);
 
@@ -117,9 +117,7 @@ export default function HomePage() {
 
       {/* Instructions */}
       <div className="absolute bottom-6 right-6 z-10 text-right">
-        <p className="text-zinc-600 text-xs">
-          Drag to rotate · Scroll to zoom · Click for details
-        </p>
+        <p className="text-zinc-600 text-xs">Drag to rotate · Scroll to zoom · Click for details</p>
       </div>
     </main>
   );

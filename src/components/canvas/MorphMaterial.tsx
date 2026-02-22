@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import type React from "react";
 import { shaderMaterial } from "@react-three/drei";
 import * as THREE from "three";
 import { extend } from "@react-three/fiber";
@@ -137,14 +137,14 @@ const MorphShaderMaterial = shaderMaterial(
 
       gl_FragColor = vec4(mix(globeColor, flatColor, flatBlend), 1.0);
     }
-  `
+  `,
 );
 
 // Extend Three.js with our custom material
 extend({ MorphShaderMaterial });
 
 // TypeScript declaration for JSX
-type MorphShaderMaterialProps = {
+interface MorphShaderMaterialProps {
   morphProgress?: number;
   color?: THREE.Color | string;
   emissive?: THREE.Color | string;
@@ -160,7 +160,7 @@ type MorphShaderMaterialProps = {
   nightColor?: THREE.Color | string;
   enableDayNight?: boolean;
   ref?: React.Ref<THREE.ShaderMaterial>;
-};
+}
 
 declare module "@react-three/fiber" {
   interface ThreeElements {

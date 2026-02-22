@@ -2,26 +2,126 @@
 
 import { useRef, useEffect } from "react";
 import { gsap } from "gsap";
-import { useViewMode, useMorphAnimation, useLayers, useDayNight, morphProgressRef } from "@/store/hooks";
+import {
+  useViewMode,
+  useMorphAnimation,
+  useLayers,
+  useDayNight,
+  morphProgressRef,
+} from "@/store/hooks";
 import type { MapLayer } from "@/types/geo";
+
+// ==========================================
+// Icons
+// ==========================================
+
+const FlagIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+    <line x1="4" y1="22" x2="4" y2="15" />
+  </svg>
+);
+
+const MountainIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="m8 3 4 8 5-5 5 15H2L8 3z" />
+  </svg>
+);
+
+const ContourIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10" />
+    <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6" />
+    <path d="M12 10a2 2 0 0 0-2 2 2 2 0 0 0 2 2" />
+  </svg>
+);
+
+const ChartIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M3 3v18h18" />
+    <path d="M18 17V9" />
+    <path d="M13 17V5" />
+    <path d="M8 17v-3" />
+  </svg>
+);
+
+const FlameIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+  </svg>
+);
 
 // ==========================================
 // Layer Configuration
 // ==========================================
 
 const LAYERS: { id: MapLayer; label: string; icon: React.ReactNode; requires?: MapLayer }[] = [
-  { id: "political", label: "Political", icon: <FlagIcon className="w-4 h-4" /> },
-  { id: "physical", label: "Physical", icon: <MountainIcon className="w-4 h-4" /> },
-  { id: "topography", label: "Topography", icon: <ContourIcon className="w-4 h-4" /> },
-  { id: "choropleth", label: "Data", icon: <ChartIcon className="w-4 h-4" />, requires: "political" },
-  { id: "heatmap", label: "Heatmap", icon: <FlameIcon className="w-4 h-4" /> },
+  { id: "political", label: "Political", icon: <FlagIcon className="w-[15px] h-[15px]" /> },
+  { id: "physical", label: "Physical", icon: <MountainIcon className="w-[15px] h-[15px]" /> },
+  { id: "topography", label: "Topography", icon: <ContourIcon className="w-[15px] h-[15px]" /> },
+  {
+    id: "choropleth",
+    label: "Data",
+    icon: <ChartIcon className="w-[15px] h-[15px]" />,
+    requires: "political",
+  },
+  { id: "heatmap", label: "Heatmap", icon: <FlameIcon className="w-[15px] h-[15px]" /> },
 ];
+
+const GLASS_STYLE = {
+  background: "rgba(8, 13, 26, 0.84)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  border: "1px solid rgba(255, 255, 255, 0.07)",
+  boxShadow:
+    "0 20px 60px rgba(0, 0, 0, 0.55), 0 0 0 0.5px rgba(255, 255, 255, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.06)",
+} as const;
 
 // ==========================================
 // ControlPanel Component
 // ==========================================
 
-export function ControlPanel() {
+export const ControlPanel = () => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,40 +129,40 @@ export function ControlPanel() {
       gsap.fromTo(
         containerRef.current,
         { opacity: 0, y: 20, scale: 0.95 },
-        { opacity: 1, y: 0, scale: 1, duration: 0.5, delay: 0.2, ease: "power3.out" }
+        { opacity: 1, y: 0, scale: 1, duration: 0.5, delay: 0.2, ease: "power3.out" },
       );
     }
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      className="absolute bottom-6 left-6 z-10"
-    >
-      <div className="w-56 bg-black/80 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl shadow-black/50 overflow-hidden">
-        {/* View Mode */}
+    <div ref={containerRef} className="absolute bottom-6 left-6 z-10">
+      <div className="w-[214px] rounded-2xl overflow-hidden" style={GLASS_STYLE}>
         <ViewModeSection />
 
-        {/* Layers */}
+        <div style={{ height: "1px", background: "rgba(255,255,255,0.05)", margin: "0 10px" }} />
+
         <LayersSection />
 
-        {/* Effects */}
+        <div style={{ height: "1px", background: "rgba(255,255,255,0.05)", margin: "0 10px" }} />
+
         <EffectsSection />
       </div>
     </div>
   );
-}
+};
 
 // ==========================================
 // View Mode Section
 // ==========================================
 
-function ViewModeSection() {
+const ViewModeSection = () => {
   const { viewMode, setViewMode } = useViewMode();
   const { setMorphProgress, setIsAnimating, isAnimating } = useMorphAnimation();
 
   const handleToggle = (newMode: "globe" | "flat") => {
-    if (viewMode === newMode || isAnimating) return;
+    if (viewMode === newMode || isAnimating) {
+      return;
+    }
 
     const targetProgress = newMode === "globe" ? 0 : 1;
     setIsAnimating(true);
@@ -80,26 +180,26 @@ function ViewModeSection() {
   };
 
   return (
-    <div className="p-3">
-      <div className="flex bg-white/5 rounded-xl p-1">
+    <div className="p-2.5">
+      <div className="flex rounded-xl p-[3px]" style={{ background: "rgba(255,255,255,0.04)" }}>
         <ViewButton
           active={viewMode === "globe"}
           onClick={() => handleToggle("globe")}
-          icon={<GlobeIcon className="w-4 h-4" />}
+          icon={<GlobeIcon className="w-3.5 h-3.5" />}
           label="Globe"
         />
         <ViewButton
           active={viewMode === "flat"}
           onClick={() => handleToggle("flat")}
-          icon={<MapIcon className="w-4 h-4" />}
+          icon={<MapIcon className="w-3.5 h-3.5" />}
           label="Flat"
         />
       </div>
     </div>
   );
-}
+};
 
-function ViewButton({
+const ViewButton = ({
   active,
   onClick,
   icon,
@@ -109,53 +209,58 @@ function ViewButton({
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`
-        flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg
-        text-sm font-medium transition-all duration-200
-        ${active
-          ? "bg-white text-black shadow-lg"
-          : "text-white/60 hover:text-white hover:bg-white/5"
-        }
-      `}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
+}) => (
+  <button
+    onClick={onClick}
+    className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-all duration-200"
+    style={
+      active
+        ? {
+            background: "rgba(255,255,255,0.11)",
+            color: "rgba(255,255,255,0.95)",
+            boxShadow: "0 1px 6px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08)",
+          }
+        : { color: "rgba(255,255,255,0.36)" }
+    }
+  >
+    {icon}
+    {label}
+  </button>
+);
 
 // ==========================================
 // Layers Section
 // ==========================================
 
-function LayersSection() {
+const LayersSection = () => {
   const { activeLayers, toggleLayer } = useLayers();
 
   return (
-    <div className="px-3 pb-2">
-      <div className="text-[10px] font-semibold tracking-widest uppercase text-white/30 mb-2 px-1">
+    <div className="px-2.5 py-3">
+      <p
+        className="text-[9px] font-semibold tracking-[0.14em] uppercase mb-2 px-1.5"
+        style={{ color: "rgba(255,255,255,0.22)" }}
+      >
         Layers
-      </div>
-      <div className="space-y-1">
-        {LAYERS.filter((layer) => !layer.requires || activeLayers.has(layer.requires)).map((layer) => (
-          <LayerButton
-            key={layer.id}
-            icon={layer.icon}
-            label={layer.label}
-            active={activeLayers.has(layer.id)}
-            onToggle={() => toggleLayer(layer.id)}
-          />
-        ))}
+      </p>
+      <div className="space-y-px">
+        {LAYERS.filter((layer) => !layer.requires || activeLayers.has(layer.requires)).map(
+          (layer) => (
+            <LayerButton
+              key={layer.id}
+              icon={layer.icon}
+              label={layer.label}
+              active={activeLayers.has(layer.id)}
+              onToggle={() => toggleLayer(layer.id)}
+            />
+          ),
+        )}
       </div>
     </div>
   );
-}
+};
 
-function LayerButton({
+const LayerButton = ({
   icon,
   label,
   active,
@@ -165,181 +270,189 @@ function LayerButton({
   label: string;
   active: boolean;
   onToggle: () => void;
-}) {
-  return (
-    <button
-      onClick={onToggle}
-      className={`
-        w-full flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm
-        transition-all duration-200
-        ${active
-          ? "bg-white/10 text-white"
-          : "text-white/50 hover:text-white/80 hover:bg-white/5"
-        }
-      `}
+}) => (
+  <button
+    onClick={onToggle}
+    className="w-full flex items-center gap-2.5 py-[9px] pl-3.5 pr-2.5 rounded-xl text-xs transition-all duration-150 relative"
+    style={active ? { background: "rgba(59, 130, 246, 0.09)" } : {}}
+  >
+    {/* Left accent bar */}
+    <span
+      className="absolute left-[5px] top-1/2 -translate-y-1/2 w-[2px] rounded-full transition-all duration-200"
+      style={{
+        height: "52%",
+        background: active ? "rgba(96, 165, 250, 0.85)" : "rgba(255,255,255,0.07)",
+      }}
+    />
+
+    {/* Icon */}
+    <span
+      className="transition-colors duration-150 flex-shrink-0"
+      style={{ color: active ? "#60a5fa" : "rgba(255,255,255,0.28)" }}
     >
-      <span className={`transition-colors ${active ? "text-blue-400" : ""}`}>
-        {icon}
-      </span>
-      <span className="font-medium flex-1 text-left">{label}</span>
-      <div
-        className={`
-          w-5 h-5 rounded-md flex items-center justify-center transition-all duration-200
-          ${active ? "bg-blue-500" : "bg-white/10"}
-        `}
-      >
-        {active && (
-          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-        )}
-      </div>
-    </button>
-  );
-}
+      {icon}
+    </span>
+
+    {/* Label */}
+    <span
+      className="font-medium flex-1 text-left transition-colors duration-150"
+      style={{ color: active ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.4)" }}
+    >
+      {label}
+    </span>
+
+    {/* Status indicator */}
+    <span
+      className="w-[5px] h-[5px] rounded-full flex-shrink-0 transition-all duration-200"
+      style={{ background: active ? "#60a5fa" : "rgba(255,255,255,0.1)" }}
+    />
+  </button>
+);
 
 // ==========================================
 // Effects Section
 // ==========================================
 
-function EffectsSection() {
+const EffectsSection = () => {
   const { enableDayNight, toggleDayNight } = useDayNight();
   const { viewMode } = useViewMode();
   const isDisabled = viewMode === "flat";
 
   return (
-    <div className="px-3 pb-3">
-      <div className="text-[10px] font-semibold tracking-widest uppercase text-white/30 mb-2 px-1">
+    <div className="px-2.5 py-3">
+      <p
+        className="text-[9px] font-semibold tracking-[0.14em] uppercase mb-2 px-1.5"
+        style={{ color: "rgba(255,255,255,0.22)" }}
+      >
         Effects
-      </div>
+      </p>
       <button
         onClick={toggleDayNight}
         disabled={isDisabled}
-        className={`
-          w-full flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm
-          transition-all duration-200
-          ${isDisabled
-            ? "text-white/20 cursor-not-allowed"
+        className="w-full flex items-center gap-2.5 py-[9px] pl-3.5 pr-2.5 rounded-xl text-xs transition-all duration-150 relative"
+        style={
+          isDisabled
+            ? { cursor: "not-allowed" }
             : enableDayNight
-              ? "bg-white/10 text-white"
-              : "text-white/50 hover:text-white/80 hover:bg-white/5"
-          }
-        `}
+              ? { background: "rgba(245, 158, 11, 0.08)" }
+              : {}
+        }
       >
-        <span className={`transition-colors ${enableDayNight && !isDisabled ? "text-amber-400" : ""}`}>
-          <SunMoonIcon className="w-4 h-4" />
+        {/* Left accent bar */}
+        <span
+          className="absolute left-[5px] top-1/2 -translate-y-1/2 w-[2px] rounded-full transition-all duration-200"
+          style={{
+            height: "52%",
+            background:
+              enableDayNight && !isDisabled ? "rgba(251, 191, 36, 0.85)" : "rgba(255,255,255,0.07)",
+          }}
+        />
+
+        {/* Icon */}
+        <span
+          className="transition-colors duration-150 flex-shrink-0"
+          style={{
+            color: enableDayNight && !isDisabled ? "#fbbf24" : "rgba(255,255,255,0.28)",
+          }}
+        >
+          <SunMoonIcon className="w-[15px] h-[15px]" />
         </span>
-        <span className="font-medium flex-1 text-left">Day / Night</span>
+
+        {/* Label */}
+        <span
+          className="font-medium flex-1 text-left transition-colors duration-150"
+          style={{
+            color:
+              enableDayNight && !isDisabled
+                ? "rgba(255,255,255,0.88)"
+                : isDisabled
+                  ? "rgba(255,255,255,0.18)"
+                  : "rgba(255,255,255,0.4)",
+          }}
+        >
+          Day / Night
+        </span>
 
         {/* Toggle Switch */}
-        <div
-          className={`
-            w-10 h-6 rounded-full p-0.5 transition-all duration-300
-            ${isDisabled
-              ? "bg-white/5"
+        <span
+          className="flex-shrink-0 rounded-full p-[2px] transition-all duration-300 flex items-center"
+          style={{
+            width: "30px",
+            height: "17px",
+            background: isDisabled
+              ? "rgba(255,255,255,0.06)"
               : enableDayNight
-                ? "bg-gradient-to-r from-amber-500 to-orange-500"
-                : "bg-white/10"
-            }
-          `}
+                ? "rgba(251, 191, 36, 0.6)"
+                : "rgba(255,255,255,0.1)",
+          }}
         >
-          <div
-            className={`
-              w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300
-              ${enableDayNight ? "translate-x-4" : "translate-x-0"}
-              ${isDisabled ? "opacity-30" : ""}
-            `}
+          <span
+            className="block rounded-full bg-white shadow-sm transition-all duration-300"
+            style={{
+              width: "13px",
+              height: "13px",
+              transform: enableDayNight ? "translateX(13px)" : "translateX(0)",
+              opacity: isDisabled ? 0.25 : 1,
+            }}
           />
-        </div>
+        </span>
       </button>
     </div>
   );
-}
+};
 
-// ==========================================
-// Icons
-// ==========================================
+const GlobeIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <ellipse cx="12" cy="12" rx="4" ry="10" />
+    <path d="M2 12h20" />
+  </svg>
+);
 
-function GlobeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <ellipse cx="12" cy="12" rx="4" ry="10" />
-      <path d="M2 12h20" />
-    </svg>
-  );
-}
+const MapIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+    <line x1="9" y1="3" x2="9" y2="18" />
+    <line x1="15" y1="6" x2="15" y2="21" />
+  </svg>
+);
 
-function MapIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
-      <line x1="9" y1="3" x2="9" y2="18" />
-      <line x1="15" y1="6" x2="15" y2="21" />
-    </svg>
-  );
-}
-
-function FlagIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-      <line x1="4" y1="22" x2="4" y2="15" />
-    </svg>
-  );
-}
-
-function MountainIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m8 3 4 8 5-5 5 15H2L8 3z" />
-    </svg>
-  );
-}
-
-function SunMoonIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2" />
-      <path d="M12 20v2" />
-      <path d="m4.93 4.93 1.41 1.41" />
-      <path d="m17.66 17.66 1.41 1.41" />
-      <path d="M2 12h2" />
-      <path d="M20 12h2" />
-      <path d="m6.34 17.66-1.41 1.41" />
-      <path d="m19.07 4.93-1.41 1.41" />
-    </svg>
-  );
-}
-
-function ContourIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10" />
-      <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6" />
-      <path d="M12 10a2 2 0 0 0-2 2 2 2 0 0 0 2 2" />
-    </svg>
-  );
-}
-
-function ChartIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 3v18h18" />
-      <path d="M18 17V9" />
-      <path d="M13 17V5" />
-      <path d="M8 17v-3" />
-    </svg>
-  );
-}
-
-function FlameIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
-    </svg>
-  );
-}
+const SunMoonIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2" />
+    <path d="M12 20v2" />
+    <path d="m4.93 4.93 1.41 1.41" />
+    <path d="m17.66 17.66 1.41 1.41" />
+    <path d="M2 12h2" />
+    <path d="M20 12h2" />
+    <path d="m6.34 17.66-1.41 1.41" />
+    <path d="m19.07 4.93-1.41 1.41" />
+  </svg>
+);
 
 export default ControlPanel;

@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "The Geographies - Interactive 3D World Map",
-  description: "A high-quality, interactive world map application with morphable 3D globe and flat projections using React Three Fiber, GSAP, and D3-geo.",
+  description:
+    "A high-quality, interactive world map application with morphable 3D globe and flat projections using React Three Fiber, GSAP, and D3-geo.",
 };
 
 export default function RootLayout({
@@ -24,11 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body>
     </html>
   );
 }

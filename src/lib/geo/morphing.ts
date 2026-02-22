@@ -11,10 +11,12 @@ import * as THREE from "three";
  * Convert a GeoJSON feature to morphable geometry
  */
 export function featureToMorphableGeometry(
-  feature: Feature<Geometry, CountryProperties>
+  feature: Feature<Geometry, CountryProperties>,
 ): MorphableGeometry | null {
-  const geometry = feature.geometry;
-  if (!geometry) return null;
+  const { geometry } = feature;
+  if (!geometry) {
+    return null;
+  }
 
   const featureId = feature.properties?.iso_a3 || feature.id?.toString() || "unknown";
 
@@ -33,10 +35,7 @@ export function featureToMorphableGeometry(
  * Convert a single polygon to morphable geometry using THREE.ShapeGeometry
  * Note: Holes (lakes) are intentionally ignored to render solid country shapes
  */
-function polygonToMorphable(
-  coordinates: Position[][],
-  featureId: string
-): MorphableGeometry {
+function polygonToMorphable(coordinates: Position[][], featureId: string): MorphableGeometry {
   if (!coordinates || coordinates.length === 0 || !coordinates[0] || coordinates[0].length < 3) {
     return { positions: [], indices: [], featureId };
   }
@@ -87,7 +86,7 @@ function polygonToMorphable(
  */
 function multiPolygonToMorphable(
   coordinates: Position[][][],
-  featureId: string
+  featureId: string,
 ): MorphableGeometry {
   const allPositions: MorphablePosition[] = [];
   const allIndices: number[] = [];
@@ -115,7 +114,7 @@ function multiPolygonToMorphable(
  */
 export function createMorphableBufferGeometry(
   morphable: MorphableGeometry,
-  morphProgress: number = 0
+  morphProgress: number = 0,
 ): THREE.BufferGeometry {
   // Subdivide large triangles for better sphere projection
   const subdivided = subdivideLargeTriangles(morphable);
@@ -168,7 +167,7 @@ function subdivideLargeTriangles(morphable: MorphableGeometry): MorphableGeometr
   const maxEdgeLength = 5; // Max degrees for an edge (smaller = smoother on sphere)
   const maxIterations = 5; // Prevent infinite loops
 
-  let positions = [...morphable.positions];
+  const positions = [...morphable.positions];
   let indices = [...morphable.indices];
 
   for (let iter = 0; iter < maxIterations; iter++) {
@@ -224,7 +223,9 @@ function subdivideLargeTriangles(morphable: MorphableGeometry): MorphableGeometr
 
     indices = newIndices;
 
-    if (!subdivided) break;
+    if (!subdivided) {
+      break;
+    }
   }
 
   return {
@@ -234,7 +235,10 @@ function subdivideLargeTriangles(morphable: MorphableGeometry): MorphableGeometr
   };
 }
 
-function geoDistance(a: { longitude: number; latitude: number }, b: { longitude: number; latitude: number }): number {
+function geoDistance(
+  a: { longitude: number; latitude: number },
+  b: { longitude: number; latitude: number },
+): number {
   const dLon = Math.abs(a.longitude - b.longitude);
   const dLat = Math.abs(a.latitude - b.latitude);
   // Handle antimeridian crossing
@@ -245,24 +249,28 @@ function geoDistance(a: { longitude: number; latitude: number }, b: { longitude:
 /**
  * Update geometry positions based on morph progress
  */
-export function updateMorphProgress(
-  geometry: THREE.BufferGeometry,
-  morphProgress: number
-): void {
+export function updateMorphProgress(geometry: THREE.BufferGeometry, morphProgress: number): void {
   const spherePositions = geometry.getAttribute("spherePosition") as THREE.BufferAttribute;
   const flatPositions = geometry.getAttribute("flatPosition") as THREE.BufferAttribute;
   const positions = geometry.getAttribute("position") as THREE.BufferAttribute;
 
-  if (!spherePositions || !flatPositions || !positions) return;
+  if (!spherePositions || !flatPositions || !positions) {
+    return;
+  }
 
-  const count = positions.count;
+  const { count } = positions;
   const t = Math.max(0, Math.min(1, morphProgress));
 
   for (let i = 0; i < count; i++) {
     const idx = i * 3;
-    positions.array[idx] = spherePositions.array[idx] + (flatPositions.array[idx] - spherePositions.array[idx]) * t;
-    positions.array[idx + 1] = spherePositions.array[idx + 1] + (flatPositions.array[idx + 1] - spherePositions.array[idx + 1]) * t;
-    positions.array[idx + 2] = spherePositions.array[idx + 2] + (flatPositions.array[idx + 2] - spherePositions.array[idx + 2]) * t;
+    positions.array[idx] =
+      spherePositions.array[idx] + (flatPositions.array[idx] - spherePositions.array[idx]) * t;
+    positions.array[idx + 1] =
+      spherePositions.array[idx + 1] +
+      (flatPositions.array[idx + 1] - spherePositions.array[idx + 1]) * t;
+    positions.array[idx + 2] =
+      spherePositions.array[idx + 2] +
+      (flatPositions.array[idx + 2] - spherePositions.array[idx + 2]) * t;
   }
 
   positions.needsUpdate = true;

@@ -30,7 +30,7 @@ const FLAT_Z_OFFSET = -0.005;
 // TopographyLayer Component
 // ==========================================
 
-export function TopographyLayer({ morphProgress }: TopographyLayerProps) {
+export const TopographyLayer = ({ morphProgress }: TopographyLayerProps) => {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
   // Load textures
@@ -115,17 +115,18 @@ export function TopographyLayer({ morphProgress }: TopographyLayerProps) {
   });
 
   // Custom shader material with hypsometric tint + contour lines
-  const shaderMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      uniforms: {
-        morphProgress: { value: morphProgressRef.current },
-        hypsometricMap: { value: hypsometricTexture },
-        elevationMap: { value: elevationTexture },
-        contourCount: { value: 20.0 },
-        contourColor: { value: new THREE.Vector3(0.0, 0.0, 0.0) },
-        contourOpacity: { value: 0.3 },
-      },
-      vertexShader: `
+  const shaderMaterial = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        uniforms: {
+          morphProgress: { value: morphProgressRef.current },
+          hypsometricMap: { value: hypsometricTexture },
+          elevationMap: { value: elevationTexture },
+          contourCount: { value: 20.0 },
+          contourColor: { value: new THREE.Vector3(0.0, 0.0, 0.0) },
+          contourOpacity: { value: 0.3 },
+        },
+        vertexShader: `
         attribute vec3 spherePosition;
         attribute vec3 flatPosition;
 
@@ -139,7 +140,7 @@ export function TopographyLayer({ morphProgress }: TopographyLayerProps) {
           gl_Position = projectionMatrix * modelViewMatrix * vec4(morphedPosition, 1.0);
         }
       `,
-      fragmentShader: `
+        fragmentShader: `
         uniform sampler2D hypsometricMap;
         uniform sampler2D elevationMap;
         uniform float contourCount;
@@ -167,15 +168,16 @@ export function TopographyLayer({ morphProgress }: TopographyLayerProps) {
           gl_FragColor = vec4(finalColor, 1.0);
         }
       `,
-      side: THREE.DoubleSide,
-    });
-  }, [hypsometricTexture, elevationTexture]);
+        side: THREE.DoubleSide,
+      }),
+    [hypsometricTexture, elevationTexture],
+  );
 
   return (
     <mesh geometry={geometry} material={shaderMaterial}>
       <primitive object={shaderMaterial} ref={materialRef} attach="material" />
     </mesh>
   );
-}
+};
 
 export default TopographyLayer;

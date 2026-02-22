@@ -15,22 +15,23 @@ interface LegendProps {
   position?: "top-right" | "bottom-right" | "bottom-left";
 }
 
-export function Legend({
+export const Legend = ({
   title,
   colorScale,
   domain,
   format = (v) => v.toLocaleString(),
   position = "bottom-right",
-}: LegendProps) {
+}: LegendProps) => {
   const positionClasses = {
     "top-right": "top-6 right-6",
     "bottom-right": "bottom-24 right-6",
     "bottom-left": "bottom-24 left-64",
   };
 
-  const gradient = useMemo(() => {
-    return `linear-gradient(to right, ${colorScale.colors.join(", ")})`;
-  }, [colorScale.colors]);
+  const gradient = useMemo(
+    () => `linear-gradient(to right, ${colorScale.colors.join(", ")})`,
+    [colorScale.colors],
+  );
 
   return (
     <div
@@ -42,10 +43,7 @@ export function Legend({
       </div>
 
       {/* Gradient bar */}
-      <div
-        className="h-2.5 rounded-sm mb-1.5"
-        style={{ background: gradient }}
-      />
+      <div className="h-2.5 rounded-sm mb-1.5" style={{ background: gradient }} />
 
       {/* Scale labels */}
       <div className="flex justify-between text-[11px] text-white/70">
@@ -54,7 +52,7 @@ export function Legend({
       </div>
     </div>
   );
-}
+};
 
 // ==========================================
 // Choropleth Legend (connected to store)
@@ -62,15 +60,11 @@ export function Legend({
 
 import { useChoropleth, useHeatmap, useLayers } from "@/store/hooks";
 
-export function ChoroplethLegend() {
+export const ChoroplethLegend = () => {
   const { config } = useChoropleth();
   const { activeLayers } = useLayers();
 
-  if (
-    !activeLayers.has("choropleth") ||
-    !config.enabled ||
-    !config.showLegend
-  ) {
+  if (!activeLayers.has("choropleth") || !config.enabled || !config.showLegend) {
     return null;
   }
 
@@ -81,13 +75,13 @@ export function ChoroplethLegend() {
       domain={config.colorScale.domain}
     />
   );
-}
+};
 
 // ==========================================
 // Heatmap Legend (connected to store)
 // ==========================================
 
-export function HeatmapLegend() {
+export const HeatmapLegend = () => {
   const { config } = useHeatmap();
   const { activeLayers } = useLayers();
 
@@ -103,6 +97,6 @@ export function HeatmapLegend() {
       position="bottom-left"
     />
   );
-}
+};
 
 export default Legend;

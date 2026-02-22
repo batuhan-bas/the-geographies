@@ -15,11 +15,11 @@ interface AtmosphereProps {
   intensity?: number;
 }
 
-export function Atmosphere({
+export const Atmosphere = ({
   morphProgress,
   color = "#4da6ff",
   intensity = 0.6,
-}: AtmosphereProps) {
+}: AtmosphereProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
@@ -32,7 +32,7 @@ export function Atmosphere({
       uMorphProgress: { value: morphProgress },
       uTime: { value: 0 },
     }),
-    [color, intensity]
+    [color, intensity],
   );
 
   useFrame((state) => {
@@ -43,7 +43,9 @@ export function Atmosphere({
   });
 
   // Fade out completely when flat
-  if (morphProgress > 0.95) return null;
+  if (morphProgress > 0.95) {
+    return null;
+  }
 
   return (
     <mesh ref={meshRef} scale={1.15}>
@@ -60,6 +62,6 @@ export function Atmosphere({
       />
     </mesh>
   );
-}
+};
 
 export default Atmosphere;

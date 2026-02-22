@@ -16,7 +16,7 @@ import type { CountryFeature } from "@/types/geo";
 // Camera Controller Component
 // ==========================================
 
-function CameraController() {
+const CameraController = () => {
   const { camera } = useThree();
   const controlsRef = useRef<any>(null);
   const { selectedCountry, viewMode } = useMapStore();
@@ -24,10 +24,14 @@ function CameraController() {
 
   // Animate camera to focus on selected country
   useEffect(() => {
-    if (!selectedCountry || !controlsRef.current) return;
+    if (!selectedCountry || !controlsRef.current) {
+      return;
+    }
 
     const centroid = getFeatureCentroid(selectedCountry);
-    if (!centroid) return;
+    if (!centroid) {
+      return;
+    }
 
     let targetPosition: THREE.Vector3;
     let targetLookAt: THREE.Vector3;
@@ -48,7 +52,7 @@ function CameraController() {
       // Scale: longitude -180 to 180 maps to x -2 to 2
       // Scale: latitude -90 to 90 maps to y -1 to 1
       const x = (centroid.longitude / 180) * 2;
-      const y = (centroid.latitude / 90);
+      const y = centroid.latitude / 90;
 
       // Zoom in close - z=1.5 for nice detail view
       targetPosition = new THREE.Vector3(x, y, 1.5);
@@ -80,7 +84,9 @@ function CameraController() {
 
   // Adjust camera for view mode transition
   useEffect(() => {
-    if (!controlsRef.current) return;
+    if (!controlsRef.current) {
+      return;
+    }
 
     if (viewMode === "flat") {
       // Flat mode: orthographic-like view from front
@@ -125,8 +131,8 @@ function CameraController() {
     <OrbitControls
       ref={controlsRef}
       enablePan={!isGlobeMode}
-      enableZoom={true}
-      enableRotate={true}
+      enableZoom
+      enableRotate
       minDistance={isGlobeMode ? 1.8 : 0.5}
       maxDistance={isGlobeMode ? 6 : 8}
       dampingFactor={0.08}
@@ -143,20 +149,18 @@ function CameraController() {
       maxAzimuthAngle={isGlobeMode ? Infinity : 0.05}
     />
   );
-}
+};
 
 // ==========================================
 // Loading Fallback
 // ==========================================
 
-function LoadingFallback() {
-  return (
-    <mesh>
-      <sphereGeometry args={[1, 32, 32]} />
-      <meshBasicMaterial color="#2a2a4a" wireframe />
-    </mesh>
-  );
-}
+const LoadingFallback = () => (
+  <mesh>
+    <sphereGeometry args={[1, 32, 32]} />
+    <meshBasicMaterial color="#2a2a4a" wireframe />
+  </mesh>
+);
 
 // ==========================================
 // Scene Content
@@ -166,7 +170,7 @@ interface SceneProps {
   countries: CountryFeature[];
 }
 
-function Scene({ countries }: SceneProps) {
+const Scene = ({ countries }: SceneProps) => {
   const { morphProgress } = useMorphAnimation();
 
   return (
@@ -182,17 +186,14 @@ function Scene({ countries }: SceneProps) {
 
       {/* Globe with countries */}
       <Suspense fallback={<LoadingFallback />}>
-        <Globe
-          countries={countries}
-          morphProgress={morphProgress}
-        />
+        <Globe countries={countries} morphProgress={morphProgress} />
       </Suspense>
 
       {/* Background */}
       <color attach="background" args={["#0a0a1a"]} />
     </>
   );
-}
+};
 
 // ==========================================
 // MapCanvas Component
@@ -204,11 +205,7 @@ export interface MapCanvasProps {
   showStats?: boolean;
 }
 
-export function MapCanvas({
-  countries,
-  className = "",
-  showStats = false,
-}: MapCanvasProps) {
+export const MapCanvas = ({ countries, className = "", showStats = false }: MapCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   return (
@@ -224,10 +221,10 @@ export function MapCanvas({
         shadows={false}
       >
         <Scene countries={countries} />
-        {showStats && <Stats />}
+        {showStats ? <Stats /> : null}
       </Canvas>
     </div>
   );
-}
+};
 
 export default MapCanvas;

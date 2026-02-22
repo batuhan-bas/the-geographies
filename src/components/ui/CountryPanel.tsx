@@ -5,16 +5,32 @@ import { gsap } from "gsap";
 import { useCountrySelection } from "@/store/hooks";
 
 // ==========================================
+// Continent Colors (matching CountryMesh)
+// ==========================================
+
+const CONTINENT_COLORS: Record<string, string> = {
+  Europe: "#5d9b6b",
+  Asia: "#d4a574",
+  Africa: "#e8a83c",
+  "North America": "#7eb5a6",
+  "South America": "#6bc268",
+  Oceania: "#c287a5",
+  Antarctica: "#b8c4ce",
+};
+
+// ==========================================
 // CountryPanel Component
 // ==========================================
 
-export function CountryPanel() {
+export const CountryPanel = () => {
   const { selectedCountry, isPanelOpen, closePanel } = useCountrySelection();
   const panelRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!panelRef.current) return;
+    if (!panelRef.current) {
+      return;
+    }
 
     if (isPanelOpen && selectedCountry) {
       gsap.to(panelRef.current, {
@@ -34,7 +50,7 @@ export function CountryPanel() {
             stagger: 0.05,
             delay: 0.15,
             ease: "power2.out",
-          }
+          },
         );
       }
     } else {
@@ -47,25 +63,41 @@ export function CountryPanel() {
   }, [isPanelOpen, selectedCountry]);
 
   const properties = selectedCountry?.properties;
+  const continentColor = CONTINENT_COLORS[properties?.continent || ""] || "#6b7c93";
+  const initial = (properties?.name || "?")[0].toUpperCase();
 
   return (
     <>
       {/* Backdrop */}
-      {isPanelOpen && (
+      {isPanelOpen ? (
         <div
-          className="fixed inset-0 z-10 bg-black/20"
+          className="fixed inset-0 z-10"
+          style={{ background: "rgba(0,0,0,0.18)" }}
           onClick={closePanel}
         />
-      )}
+      ) : null}
 
       {/* Panel */}
       <div
         ref={panelRef}
-        className="fixed right-0 top-0 h-full w-[380px] bg-zinc-950 border-l border-white/[0.06] z-20 transform translate-x-full"
+        className="fixed right-0 top-0 h-full w-[360px] z-20 transform translate-x-full flex flex-col"
+        style={{
+          background: "rgba(7, 10, 22, 0.90)",
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          borderLeft: "1px solid rgba(255, 255, 255, 0.07)",
+          boxShadow: "-20px 0 60px rgba(0, 0, 0, 0.45)",
+        }}
       >
         {/* Header */}
-        <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-6 border-b border-white/[0.06]">
-          <span className="text-[11px] font-medium tracking-wider uppercase text-zinc-500">
+        <div
+          className="flex items-center justify-between px-5 py-[14px] flex-shrink-0"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+        >
+          <span
+            className="text-[10px] font-semibold tracking-[0.15em] uppercase"
+            style={{ color: "rgba(255,255,255,0.22)" }}
+          >
             Country Details
           </span>
           <button
@@ -73,178 +105,299 @@ export function CountryPanel() {
               e.stopPropagation();
               closePanel();
             }}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-150"
+            style={{ color: "rgba(255,255,255,0.35)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.07)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             aria-label="Close panel"
           >
-            <CloseIcon className="w-4 h-4" />
+            <CloseIcon className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* Content */}
-        <div ref={contentRef} className="pt-18 pb-8 px-6 h-full overflow-y-auto" style={{ paddingTop: '72px' }}>
-          {properties && (
+        {/* Scrollable Content */}
+        <div
+          ref={contentRef}
+          className="flex-1 overflow-y-auto px-5 py-5"
+          style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+        >
+          {properties ? (
             <>
-              {/* Country Name */}
-              <div className="mb-8">
-                <h2 className="text-3xl font-semibold tracking-tight text-white leading-tight">
-                  {properties.name}
-                </h2>
-                {properties.formal_name && properties.formal_name !== properties.name && (
-                  <p className="text-zinc-400 text-sm mt-1.5">{properties.formal_name}</p>
-                )}
+              {/* Country Hero */}
+              <div className="flex items-start gap-4">
+                {/* Country Avatar */}
+                <div
+                  className="w-[46px] h-[46px] rounded-[14px] flex items-center justify-center text-[18px] font-bold flex-shrink-0"
+                  style={{
+                    background: `linear-gradient(135deg, ${continentColor}30 0%, ${continentColor}14 100%)`,
+                    border: `1px solid ${continentColor}30`,
+                    color: continentColor,
+                  }}
+                >
+                  {initial}
+                </div>
 
-                {/* ISO Codes */}
-                <div className="flex items-center gap-2 mt-4">
-                  <span className="px-2 py-1 bg-zinc-800 rounded text-xs font-mono text-zinc-300">
-                    {properties.iso_a2}
-                  </span>
-                  <span className="px-2 py-1 bg-zinc-800 rounded text-xs font-mono text-zinc-300">
-                    {properties.iso_a3}
-                  </span>
-                  {properties.type && (
-                    <span className="px-2 py-1 bg-blue-500/10 rounded text-xs text-blue-400 font-medium">
-                      {properties.type}
-                    </span>
-                  )}
+                {/* Name + Formal name */}
+                <div className="min-w-0 flex-1">
+                  <h2
+                    className="text-[22px] font-semibold tracking-tight leading-tight"
+                    style={{ color: "rgba(255,255,255,0.95)" }}
+                  >
+                    {properties.name}
+                  </h2>
+                  {properties.formal_name && properties.formal_name !== properties.name ? (
+                    <p
+                      className="text-[11px] mt-0.5 leading-tight"
+                      style={{ color: "rgba(255,255,255,0.32)" }}
+                    >
+                      {properties.formal_name}
+                    </p>
+                  ) : null}
+                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    {properties.iso_a2 && properties.iso_a2 !== "-1" ? (
+                      <Badge>{properties.iso_a2}</Badge>
+                    ) : null}
+                    {properties.iso_a3 && properties.iso_a3 !== "-99" ? (
+                      <Badge>{properties.iso_a3}</Badge>
+                    ) : null}
+                    {properties.type ? <Badge accent>{properties.type}</Badge> : null}
+                  </div>
                 </div>
               </div>
 
-              {/* Location Section */}
-              <Section title="Location">
+              {/* Location */}
+              <GlassCard title="Location">
                 <InfoRow label="Continent" value={properties.continent} />
-                {properties.region && (
-                  <InfoRow label="Region" value={properties.region} />
-                )}
-                {properties.subregion && (
-                  <InfoRow label="Subregion" value={properties.subregion} />
-                )}
-              </Section>
+                {properties.region ? (
+                  <InfoRow label="Region" value={properties.region} divider />
+                ) : null}
+                {properties.subregion ? (
+                  <InfoRow label="Subregion" value={properties.subregion} divider />
+                ) : null}
+              </GlassCard>
 
-              {/* Statistics Section */}
-              {(properties.pop_est || properties.gdp_md) && (
-                <Section title="Statistics">
-                  <div className="grid grid-cols-2 gap-3">
+              {/* Statistics */}
+              {properties.pop_est || properties.gdp_md ? (
+                <div>
+                  <SectionLabel>Statistics</SectionLabel>
+                  <div className="grid grid-cols-2 gap-2 mt-2.5">
                     {properties.pop_est !== undefined && properties.pop_est > 0 && (
                       <StatCard
                         label="Population"
                         value={formatNumber(properties.pop_est)}
+                        accent="#60a5fa"
                       />
                     )}
                     {properties.gdp_md !== undefined && properties.gdp_md > 0 && (
                       <StatCard
                         label="GDP"
                         value={`$${formatNumber(properties.gdp_md)}M`}
+                        accent="#34d399"
                       />
                     )}
                   </div>
-                </Section>
-              )}
+                </div>
+              ) : null}
 
               {/* Economic Classification */}
-              {(properties.economy || properties.income_grp) && (
-                <Section title="Economic Classification">
-                  {properties.economy && (
-                    <InfoCard label="Economy Type" value={properties.economy} />
-                  )}
-                  {properties.income_grp && (
-                    <InfoCard label="Income Group" value={properties.income_grp} />
-                  )}
-                </Section>
-              )}
+              {properties.economy || properties.income_grp ? (
+                <GlassCard title="Economic Classification">
+                  {properties.economy ? (
+                    <div>
+                      <p
+                        className="text-[9px] font-semibold tracking-[0.12em] uppercase"
+                        style={{ color: "rgba(255,255,255,0.22)" }}
+                      >
+                        Economy Type
+                      </p>
+                      <p
+                        className="text-xs mt-1 font-medium"
+                        style={{ color: "rgba(255,255,255,0.72)" }}
+                      >
+                        {properties.economy}
+                      </p>
+                    </div>
+                  ) : null}
+                  {properties.economy && properties.income_grp ? (
+                    <div
+                      className="my-3"
+                      style={{
+                        height: "1px",
+                        background: "rgba(255,255,255,0.05)",
+                      }}
+                    />
+                  ) : null}
+                  {properties.income_grp ? (
+                    <div>
+                      <p
+                        className="text-[9px] font-semibold tracking-[0.12em] uppercase"
+                        style={{ color: "rgba(255,255,255,0.22)" }}
+                      >
+                        Income Group
+                      </p>
+                      <p
+                        className="text-xs mt-1 font-medium"
+                        style={{ color: "rgba(255,255,255,0.72)" }}
+                      >
+                        {properties.income_grp}
+                      </p>
+                    </div>
+                  ) : null}
+                </GlassCard>
+              ) : null}
 
               {/* Actions */}
-              <div className="mt-8 space-y-2">
-                <ActionButton variant="secondary">
+              <div className="space-y-2 pt-1">
+                <button
+                  className="w-full py-2.5 px-4 rounded-xl text-sm font-medium transition-all duration-150"
+                  style={{
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    color: "rgba(255,255,255,0.65)",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "rgba(255,255,255,0.08)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "rgba(255,255,255,0.05)")
+                  }
+                >
                   View Full Profile
-                </ActionButton>
-                <ActionButton variant="primary">
+                </button>
+                <button
+                  className="w-full py-2.5 px-4 rounded-xl text-sm font-medium transition-all duration-150"
+                  style={{
+                    background: "rgba(59, 130, 246, 0.18)",
+                    border: "1px solid rgba(59, 130, 246, 0.28)",
+                    color: "rgba(147, 197, 253, 0.92)",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "rgba(59, 130, 246, 0.26)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "rgba(59, 130, 246, 0.18)")
+                  }
+                >
                   View Statistics
-                </ActionButton>
+                </button>
               </div>
             </>
-          )}
+          ) : null}
         </div>
       </div>
     </>
   );
-}
+};
 
 // ==========================================
 // Sub-components
 // ==========================================
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="mb-6">
-      <h3 className="text-[11px] font-medium tracking-wider uppercase text-zinc-500 mb-3">
-        {title}
-      </h3>
-      <div className="space-y-2">
-        {children}
-      </div>
-    </div>
-  );
-}
+const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+  <p
+    className="text-[9px] font-semibold tracking-[0.14em] uppercase"
+    style={{ color: "rgba(255,255,255,0.22)" }}
+  >
+    {children}
+  </p>
+);
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between items-center py-2">
-      <span className="text-sm text-zinc-400">{label}</span>
-      <span className="text-sm font-medium text-white">{value}</span>
-    </div>
-  );
-}
+const GlassCard = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <div
+    className="rounded-xl px-3.5 py-3"
+    style={{
+      background: "rgba(255,255,255,0.035)",
+      border: "1px solid rgba(255,255,255,0.06)",
+    }}
+  >
+    <p
+      className="text-[9px] font-semibold tracking-[0.14em] uppercase mb-3"
+      style={{ color: "rgba(255,255,255,0.22)" }}
+    >
+      {title}
+    </p>
+    {children}
+  </div>
+);
 
-function InfoCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="p-3 bg-zinc-900 rounded-lg border border-white/[0.04] mb-2">
-      <span className="text-xs text-zinc-500">{label}</span>
-      <p className="text-sm text-white mt-1 font-medium">{value}</p>
-    </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="p-4 bg-zinc-900 rounded-lg border border-white/[0.04]">
-      <span className="text-[11px] font-medium tracking-wider uppercase text-zinc-500 block mb-1">
+const InfoRow = ({
+  label,
+  value,
+  divider,
+}: {
+  label: string;
+  value: string;
+  divider?: boolean;
+}) => (
+  <>
+    {divider ? <div style={{ height: "1px", background: "rgba(255,255,255,0.05)" }} /> : null}
+    <div className="flex justify-between items-center py-[9px]">
+      <span className="text-xs" style={{ color: "rgba(255,255,255,0.36)" }}>
         {label}
       </span>
-      <p className="text-xl font-semibold text-white tracking-tight">{value}</p>
+      <span className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.78)" }}>
+        {value}
+      </span>
     </div>
-  );
-}
+  </>
+);
 
-function ActionButton({
-  variant,
-  children,
-}: {
-  variant: "primary" | "secondary";
-  children: React.ReactNode;
-}) {
-  const baseClasses =
-    "w-full py-3 px-4 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2";
+const StatCard = ({ label, value, accent }: { label: string; value: string; accent: string }) => (
+  <div
+    className="rounded-xl px-3 py-3"
+    style={{
+      background: "rgba(255,255,255,0.035)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      borderTop: `2px solid ${accent}40`,
+    }}
+  >
+    <p
+      className="text-[9px] font-semibold tracking-[0.1em] uppercase mb-1.5"
+      style={{ color: "rgba(255,255,255,0.28)" }}
+    >
+      {label}
+    </p>
+    <p className="text-xl font-semibold tracking-tight" style={{ color: accent }}>
+      {value}
+    </p>
+  </div>
+);
 
-  const variantClasses =
-    variant === "primary"
-      ? "bg-blue-500 hover:bg-blue-600 text-white"
-      : "bg-zinc-800 hover:bg-zinc-700 text-white";
-
-  return (
-    <button className={`${baseClasses} ${variantClasses}`}>
-      {children}
-    </button>
-  );
-}
+const Badge = ({ children, accent }: { children: React.ReactNode; accent?: boolean }) => (
+  <span
+    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium"
+    style={
+      accent
+        ? {
+            background: "rgba(59, 130, 246, 0.12)",
+            color: "rgba(147, 197, 253, 0.85)",
+            border: "1px solid rgba(59, 130, 246, 0.2)",
+          }
+        : {
+            background: "rgba(255,255,255,0.06)",
+            color: "rgba(255,255,255,0.42)",
+            border: "1px solid rgba(255,255,255,0.06)",
+          }
+    }
+  >
+    {children}
+  </span>
+);
 
 // ==========================================
 // Helper Functions
 // ==========================================
 
 function formatNumber(num: number): string {
-  if (num >= 1e9) return `${(num / 1e9).toFixed(1)}B`;
-  if (num >= 1e6) return `${(num / 1e6).toFixed(1)}M`;
-  if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`;
+  if (num >= 1e9) {
+    return `${(num / 1e9).toFixed(1)}B`;
+  }
+  if (num >= 1e6) {
+    return `${(num / 1e6).toFixed(1)}M`;
+  }
+  if (num >= 1e3) {
+    return `${(num / 1e3).toFixed(1)}K`;
+  }
   return num.toString();
 }
 
@@ -252,19 +405,19 @@ function formatNumber(num: number): string {
 // Icons
 // ==========================================
 
-function CloseIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  );
-}
+const CloseIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
 
 export default CountryPanel;

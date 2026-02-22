@@ -7,7 +7,7 @@ import type { HeatmapPoint, HeatmapConfig } from "@/types/visualization";
  */
 export function computeHeatmapTexture(
   points: HeatmapPoint[],
-  config: HeatmapConfig
+  config: HeatmapConfig,
 ): THREE.DataTexture {
   const { resolution, radius, blur, maxIntensity } = config;
   const data = new Float32Array(resolution * resolution);
@@ -19,16 +19,20 @@ export function computeHeatmapTexture(
       resolution,
       resolution,
       THREE.RedFormat,
-      THREE.UnsignedByteType
+      THREE.UnsignedByteType,
     );
     texture.needsUpdate = true;
     return texture;
   }
 
-  // Convert radius from degrees to normalized texture space (0-1)
-  const radiusNorm = radius / 180;
-  const radiusSq = radiusNorm * radiusNorm;
+  // Convert radius from degrees to pixel counts per dimension
+  // Texture is square (resolution x resolution) but maps 360° x 180° (2:1 aspect ratio)
+  const kernelRadiusX = Math.ceil((radius / 360) * resolution);
+  const kernelRadiusY = Math.ceil((radius / 180) * resolution);
+  const radiusDegSq = radius * radius;
   const blurFactor = Math.max(0.1, blur);
+  const sigmaDeg = radius * blurFactor;
+  const sigmaDegSq2 = 2 * sigmaDeg * sigmaDeg;
 
   for (const point of points) {
     // Convert geographic to texture coordinates (0-1)
@@ -37,34 +41,39 @@ export function computeHeatmapTexture(
     const u = (point.position.longitude + 180) / 360;
     const v = (point.position.latitude + 90) / 180;
 
-    // Kernel radius in pixels
-    const kernelRadius = Math.ceil(radiusNorm * resolution);
     const cx = Math.floor(u * resolution);
     const cy = Math.floor(v * resolution);
 
     // Apply Gaussian kernel
-    for (let dy = -kernelRadius; dy <= kernelRadius; dy++) {
-      for (let dx = -kernelRadius; dx <= kernelRadius; dx++) {
+    for (let dy = -kernelRadiusY; dy <= kernelRadiusY; dy++) {
+      for (let dx = -kernelRadiusX; dx <= kernelRadiusX; dx++) {
         let px = cx + dx;
-        let py = cy + dy;
+        const py = cy + dy;
 
         // Wrap horizontally (longitude wraps around)
-        if (px < 0) px += resolution;
-        if (px >= resolution) px -= resolution;
+        if (px < 0) {
+          px += resolution;
+        }
+        if (px >= resolution) {
+          px -= resolution;
+        }
 
         // Clamp vertically (latitude doesn't wrap)
-        if (py < 0 || py >= resolution) continue;
+        if (py < 0 || py >= resolution) {
+          continue;
+        }
 
-        // Calculate normalized distance
-        const distX = dx / resolution;
-        const distY = dy / resolution;
-        const distSq = distX * distX + distY * distY;
+        // Calculate distance in degrees (accounting for 2:1 aspect ratio)
+        const distXDeg = (dx / resolution) * 360;
+        const distYDeg = (dy / resolution) * 180;
+        const distDegSq = distXDeg * distXDeg + distYDeg * distYDeg;
 
-        if (distSq > radiusSq) continue;
+        if (distDegSq > radiusDegSq) {
+          continue;
+        }
 
         // Gaussian falloff: exp(-d^2 / (2 * sigma^2))
-        const sigma = radiusNorm * blurFactor;
-        const weight = Math.exp(-distSq / (2 * sigma * sigma));
+        const weight = Math.exp(-distDegSq / sigmaDegSq2);
 
         const idx = py * resolution + px;
         data[idx] += point.intensity * weight;
@@ -95,7 +104,7 @@ export function computeHeatmapTexture(
     resolution,
     resolution,
     THREE.RedFormat,
-    THREE.UnsignedByteType
+    THREE.UnsignedByteType,
   );
 
   texture.needsUpdate = true;
@@ -112,7 +121,7 @@ export function computeHeatmapTexture(
  */
 export function generateRandomHeatmapPoints(
   count: number,
-  intensityRange: [number, number] = [0.3, 1]
+  intensityRange: [number, number] = [0.3, 1],
 ): HeatmapPoint[] {
   const points: HeatmapPoint[] = [];
 
@@ -122,9 +131,7 @@ export function generateRandomHeatmapPoints(
         longitude: Math.random() * 360 - 180,
         latitude: Math.random() * 170 - 85, // Avoid exact poles
       },
-      intensity:
-        intensityRange[0] +
-        Math.random() * (intensityRange[1] - intensityRange[0]),
+      intensity: intensityRange[0] + Math.random() * (intensityRange[1] - intensityRange[0]),
     });
   }
 
@@ -135,10 +142,10 @@ export function generateRandomHeatmapPoints(
  * Generate clustered heatmap points around specific locations
  */
 export function generateClusteredHeatmapPoints(
-  centers: Array<{ longitude: number; latitude: number }>,
+  centers: { longitude: number; latitude: number }[],
   pointsPerCluster: number,
   spread: number = 10,
-  intensityRange: [number, number] = [0.5, 1]
+  intensityRange: [number, number] = [0.5, 1],
 ): HeatmapPoint[] {
   const points: HeatmapPoint[] = [];
 
@@ -149,19 +156,14 @@ export function generateClusteredHeatmapPoints(
       const distance = Math.abs(gaussianRandom() * spread);
 
       const lon = center.longitude + Math.cos(angle) * distance;
-      const lat = Math.max(
-        -85,
-        Math.min(85, center.latitude + Math.sin(angle) * distance)
-      );
+      const lat = Math.max(-85, Math.min(85, center.latitude + Math.sin(angle) * distance));
 
       points.push({
         position: {
           longitude: ((lon + 180) % 360) - 180, // Wrap longitude
           latitude: lat,
         },
-        intensity:
-          intensityRange[0] +
-          Math.random() * (intensityRange[1] - intensityRange[0]),
+        intensity: intensityRange[0] + Math.random() * (intensityRange[1] - intensityRange[0]),
       });
     }
   }
@@ -173,7 +175,11 @@ export function generateClusteredHeatmapPoints(
 function gaussianRandom(): number {
   let u = 0,
     v = 0;
-  while (u === 0) u = Math.random();
-  while (v === 0) v = Math.random();
+  while (u === 0) {
+    u = Math.random();
+  }
+  while (v === 0) {
+    v = Math.random();
+  }
   return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
 }

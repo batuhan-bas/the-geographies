@@ -97,18 +97,14 @@ export const useVisualizationStore = create<VisualizationStore>()(
       })),
 
     clearHeatmap: () => set({ heatmapPoints: [] }),
-  }))
+  })),
 );
 
 // ==========================================
 // Selectors
 // ==========================================
 
-export const selectChoroplethConfig = (state: VisualizationStore) =>
-  state.choroplethConfig;
-export const selectChoroplethData = (state: VisualizationStore) =>
-  state.choroplethData;
-export const selectHeatmapConfig = (state: VisualizationStore) =>
-  state.heatmapConfig;
-export const selectHeatmapPoints = (state: VisualizationStore) =>
-  state.heatmapPoints;
+export const selectChoroplethConfig = (state: VisualizationStore) => state.choroplethConfig;
+export const selectChoroplethData = (state: VisualizationStore) => state.choroplethData;
+export const selectHeatmapConfig = (state: VisualizationStore) => state.heatmapConfig;
+export const selectHeatmapPoints = (state: VisualizationStore) => state.heatmapPoints;

@@ -1,5 +1,12 @@
 import { geoMercator, geoOrthographic, geoPath, geoEquirectangular, geoCentroid } from "d3-geo";
-import type { Feature, Geometry, Position, Polygon, MultiPolygon, GeoJsonProperties } from "geojson";
+import type {
+  Feature,
+  Geometry,
+  Position,
+  Polygon,
+  MultiPolygon,
+  GeoJsonProperties,
+} from "geojson";
 import type { ProjectionConfig, GeoCoordinate } from "@/types/geo";
 
 // ==========================================
@@ -11,24 +18,14 @@ export function createProjection(config: ProjectionConfig) {
 
   switch (type) {
     case "orthographic":
-      return geoOrthographic()
-        .scale(scale)
-        .center(center)
-        .rotate(rotation)
-        .clipAngle(90);
+      return geoOrthographic().scale(scale).center(center).rotate(rotation).clipAngle(90);
 
     case "mercator":
-      return geoMercator()
-        .scale(scale)
-        .center(center)
-        .rotate([rotation[0], 0, 0]);
+      return geoMercator().scale(scale).center(center).rotate([rotation[0], 0, 0]);
 
     case "equirectangular":
     default:
-      return geoEquirectangular()
-        .scale(scale)
-        .center(center)
-        .rotate([rotation[0], 0, 0]);
+      return geoEquirectangular().scale(scale).center(center).rotate([rotation[0], 0, 0]);
   }
 }
 
@@ -40,12 +37,14 @@ export function createProjection(config: ProjectionConfig) {
  * Extract all coordinate rings from a GeoJSON feature
  */
 export function extractCoordinateRings(
-  feature: Feature<Geometry, GeoJsonProperties>
+  feature: Feature<Geometry, GeoJsonProperties>,
 ): Position[][] {
-  const geometry = feature.geometry;
+  const { geometry } = feature;
   const rings: Position[][] = [];
 
-  if (!geometry) return rings;
+  if (!geometry) {
+    return rings;
+  }
 
   switch (geometry.type) {
     case "Polygon":
@@ -82,11 +81,13 @@ export function extractCoordinateRings(
  * Get the centroid of a GeoJSON feature
  */
 export function getFeatureCentroid(
-  feature: Feature<Geometry, GeoJsonProperties>
+  feature: Feature<Geometry, GeoJsonProperties>,
 ): GeoCoordinate | null {
   try {
     const [longitude, latitude] = geoCentroid(feature);
-    if (isNaN(longitude) || isNaN(latitude)) return null;
+    if (isNaN(longitude) || isNaN(latitude)) {
+      return null;
+    }
     return { longitude, latitude };
   } catch {
     return null;
@@ -97,10 +98,12 @@ export function getFeatureCentroid(
  * Get bounds of a feature [west, south, east, north]
  */
 export function getFeatureBounds(
-  feature: Feature<Geometry, GeoJsonProperties>
+  feature: Feature<Geometry, GeoJsonProperties>,
 ): [number, number, number, number] | null {
   const rings = extractCoordinateRings(feature);
-  if (rings.length === 0) return null;
+  if (rings.length === 0) {
+    return null;
+  }
 
   let minLon = Infinity;
   let maxLon = -Infinity;
@@ -128,7 +131,7 @@ export function getFeatureBounds(
  */
 export function featureToPath(
   feature: Feature<Geometry, GeoJsonProperties>,
-  projection: ReturnType<typeof createProjection>
+  projection: ReturnType<typeof createProjection>,
 ): string | null {
   const pathGenerator = geoPath(projection);
   return pathGenerator(feature);
@@ -143,7 +146,7 @@ export function featureToPath(
  */
 export function projectCoordinate(
   coord: GeoCoordinate,
-  projection: ReturnType<typeof createProjection>
+  projection: ReturnType<typeof createProjection>,
 ): [number, number] | null {
   const result = projection([coord.longitude, coord.latitude]);
   return result as [number, number] | null;
@@ -155,13 +158,17 @@ export function projectCoordinate(
 export function unprojectCoordinate(
   x: number,
   y: number,
-  projection: ReturnType<typeof createProjection>
+  projection: ReturnType<typeof createProjection>,
 ): GeoCoordinate | null {
-  const invert = projection.invert;
-  if (!invert) return null;
+  const { invert } = projection;
+  if (!invert) {
+    return null;
+  }
 
   const result = invert([x, y]);
-  if (!result) return null;
+  if (!result) {
+    return null;
+  }
 
   return {
     longitude: result[0],

@@ -27,12 +27,12 @@ interface GlobeProps {
 // Globe Component
 // ==========================================
 
-export function Globe({
+export const Globe = ({
   countries,
   morphProgress,
   animateSun = true,
   sunSpeed = 0.05, // Slow rotation for gentle day/night cycle
-}: GlobeProps) {
+}: GlobeProps) => {
   const groupRef = useRef<THREE.Group>(null);
   const { activeLayers } = useMapStore();
 
@@ -62,54 +62,54 @@ export function Globe({
   // Filter visible countries based on active layers and mode
   // Hide Antarctica in flat mode due to projection distortion
   const visibleCountries = useMemo(() => {
-    if (!showPolitical) return [];
-    if (isGlobeMode) return countries;
+    if (!showPolitical) {
+      return [];
+    }
+    if (isGlobeMode) {
+      return countries;
+    }
     // In flat mode, hide Antarctica
-    return countries.filter(c => c.properties?.continent !== "Antarctica");
+    return countries.filter((c) => c.properties?.continent !== "Antarctica");
   }, [countries, showPolitical, isGlobeMode]);
 
   return (
     <group ref={groupRef}>
       {/* Physical Earth texture (when physical layer active) */}
-      {showPhysical && (
+      {showPhysical ? (
         <Suspense fallback={null}>
           <PhysicalGlobe morphProgress={morphProgress} sunDirection={sunDirection} />
         </Suspense>
-      )}
+      ) : null}
 
       {/* Topography layer (between physical and political) */}
-      {showTopography && (
+      {showTopography ? (
         <Suspense fallback={null}>
           <TopographyLayer morphProgress={morphProgress} />
         </Suspense>
-      )}
+      ) : null}
 
       {/* Ocean sphere (globe mode, only when no physical layer) */}
       {!showPhysical && (
         <mesh visible={morphProgress < 0.5}>
           <sphereGeometry args={[0.995, 64, 64]} />
-          <meshStandardMaterial
-            color="#1a4a7a"
-            roughness={0.6}
-            metalness={0.2}
-          />
+          <meshStandardMaterial color="#1a4a7a" roughness={0.6} metalness={0.2} />
         </mesh>
       )}
 
       {/* Ocean plane (flat mode) - sized to exclude Antarctica region */}
       <mesh visible={morphProgress > 0.5} position={[0, 0.1, -0.01]}>
         <planeGeometry args={[4.5, 2]} />
-        <meshStandardMaterial
-          color="#1a4a7a"
-          roughness={0.6}
-          metalness={0.2}
-        />
+        <meshStandardMaterial color="#1a4a7a" roughness={0.6} metalness={0.2} />
       </mesh>
 
       {/* Country meshes (political layer) */}
       {visibleCountries.map((feature, index) => (
         <CountryMesh
-          key={feature.properties?.iso_a3 || `country-${index}`}
+          key={
+            feature.properties?.iso_a3 && feature.properties.iso_a3 !== "-99"
+              ? feature.properties.iso_a3
+              : `country-${index}`
+          }
           feature={feature}
           index={index}
           sunDirection={sunDirection}
@@ -117,28 +117,24 @@ export function Globe({
       ))}
 
       {/* Country borders (political layer) */}
-      {showPolitical && (
+      {showPolitical ? (
         <CountryBorders
           countries={visibleCountries}
           morphProgress={morphProgress}
           color="#ffffff"
           opacity={0.2}
         />
-      )}
+      ) : null}
 
       {/* Country labels (political layer, zoom-dependent) */}
-      {showPolitical && (
-        <CountryLabels
-          countries={visibleCountries}
-          morphProgress={morphProgress}
-          minZoom={2.5}
-        />
-      )}
+      {showPolitical ? (
+        <CountryLabels countries={visibleCountries} morphProgress={morphProgress} minZoom={2.5} />
+      ) : null}
 
       {/* Heatmap visualization layer */}
       <HeatmapLayer />
     </group>
   );
-}
+};
 
 export default Globe;

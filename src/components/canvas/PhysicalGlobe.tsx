@@ -31,10 +31,10 @@ const FLAT_Z_OFFSET = -0.01; // Z offset in flat mode (behind political layer)
 // PhysicalGlobe Component
 // ==========================================
 
-export function PhysicalGlobe({
+export const PhysicalGlobe = ({
   morphProgress,
-  sunDirection = new THREE.Vector3(1, 0.3, 0.5).normalize()
-}: PhysicalGlobeProps) {
+  sunDirection = new THREE.Vector3(1, 0.3, 0.5).normalize(),
+}: PhysicalGlobeProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const { enableDayNight } = useDayNight();
@@ -128,16 +128,17 @@ export function PhysicalGlobe({
   });
 
   // Custom shader material with day/night effect
-  const shaderMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      uniforms: {
-        morphProgress: { value: morphProgressRef.current },
-        dayMap: { value: dayTexture },
-        bumpMap: { value: bumpTexture },
-        sunDirection: { value: sunDirection.clone() },
-        enableDayNight: { value: enableDayNight },
-      },
-      vertexShader: `
+  const shaderMaterial = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        uniforms: {
+          morphProgress: { value: morphProgressRef.current },
+          dayMap: { value: dayTexture },
+          bumpMap: { value: bumpTexture },
+          sunDirection: { value: sunDirection.clone() },
+          enableDayNight: { value: enableDayNight },
+        },
+        vertexShader: `
         attribute vec3 spherePosition;
         attribute vec3 flatPosition;
 
@@ -161,7 +162,7 @@ export function PhysicalGlobe({
           gl_Position = projectionMatrix * modelViewMatrix * vec4(morphedPosition, 1.0);
         }
       `,
-      fragmentShader: `
+        fragmentShader: `
         uniform sampler2D dayMap;
         uniform sampler2D bumpMap;
         uniform float morphProgress;
@@ -234,15 +235,16 @@ export function PhysicalGlobe({
           gl_FragColor = vec4(finalColor, 1.0);
         }
       `,
-      side: THREE.DoubleSide,
-    });
-  }, [dayTexture, bumpTexture, sunDirection, enableDayNight]);
+        side: THREE.DoubleSide,
+      }),
+    [dayTexture, bumpTexture, sunDirection, enableDayNight],
+  );
 
   return (
     <mesh ref={meshRef} geometry={geometry} material={shaderMaterial}>
       <primitive object={shaderMaterial} ref={materialRef} attach="material" />
     </mesh>
   );
-}
+};
 
 export default PhysicalGlobe;

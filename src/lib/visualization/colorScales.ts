@@ -51,15 +51,21 @@ function rgbToHex(r: number, g: number, b: number): string {
 export function interpolateColor(value: number, scale: ColorScale): string {
   const { domain, colors } = scale;
 
-  if (colors.length === 0) return "#808080";
-  if (colors.length === 1) return colors[0];
+  if (colors.length === 0) {
+    return "#808080";
+  }
+  if (colors.length === 1) {
+    return colors[0];
+  }
 
   // Normalize value to 0-1
   const min = domain[0];
   const max = domain[1];
   const range = max - min;
 
-  if (range === 0) return colors[0];
+  if (range === 0) {
+    return colors[0];
+  }
 
   const t = Math.max(0, Math.min(1, (value - min) / range));
 
@@ -85,7 +91,7 @@ export function interpolateColor(value: number, scale: ColorScale): string {
 export function interpolateSize(
   value: number,
   sizeRange: [number, number],
-  valueRange: [number, number]
+  valueRange: [number, number],
 ): number {
   const t = (value - valueRange[0]) / (valueRange[1] - valueRange[0]);
   const clampedT = Math.max(0, Math.min(1, t));
@@ -295,9 +301,7 @@ export const COLOR_SCALES = {
  * Get a color scale by name
  */
 export function getColorScale(name: string): ColorScale {
-  return (
-    COLOR_SCALES[name as keyof typeof COLOR_SCALES] || COLOR_SCALES.blues
-  );
+  return COLOR_SCALES[name as keyof typeof COLOR_SCALES] || COLOR_SCALES.blues;
 }
 
 /**
@@ -306,7 +310,7 @@ export function getColorScale(name: string): ColorScale {
 export function createColorScale(
   colors: string[],
   domain: [number, number],
-  name: string = "custom"
+  name: string = "custom",
 ): ColorScale {
   return {
     type: "sequential",

@@ -19,7 +19,7 @@ export const RAD_TO_DEG = 180 / Math.PI;
 export function geoToSphere(
   longitude: number,
   latitude: number,
-  radius: number = GLOBE_RADIUS
+  radius: number = GLOBE_RADIUS,
 ): CartesianCoordinate {
   const phi = (90 - latitude) * DEG_TO_RAD;
   const theta = (longitude + 180) * DEG_TO_RAD;
@@ -39,7 +39,7 @@ export function geoToSphere(
 export function geoToFlat(
   longitude: number,
   latitude: number,
-  scale: number = 2
+  scale: number = 2,
 ): CartesianCoordinate {
   // Equirectangular projection - simple linear mapping
   // Scale of 2 makes the map roughly match the globe diameter
@@ -52,11 +52,7 @@ export function geoToFlat(
 /**
  * Convert spherical coordinates back to geographic
  */
-export function sphereToGeo(
-  x: number,
-  y: number,
-  z: number
-): GeoCoordinate {
+export function sphereToGeo(x: number, y: number, z: number): GeoCoordinate {
   const radius = Math.sqrt(x * x + y * y + z * z);
   const latitude = Math.acos(y / radius) * RAD_TO_DEG - 90;
   const longitude = Math.atan2(z, -x) * RAD_TO_DEG - 180;
@@ -75,10 +71,7 @@ export function sphereToGeo(
  * Create a morphable position from geographic coordinates
  * Contains both sphere and flat representations for interpolation
  */
-export function createMorphablePosition(
-  longitude: number,
-  latitude: number
-): MorphablePosition {
+export function createMorphablePosition(longitude: number, latitude: number): MorphablePosition {
   return {
     sphere: geoToSphere(longitude, latitude),
     flat: geoToFlat(longitude, latitude),
@@ -102,10 +95,7 @@ export function positionToMorphable(position: [number, number]): MorphablePositi
  * t = 0 -> sphere (globe view)
  * t = 1 -> flat (mercator view)
  */
-export function interpolatePosition(
-  morphable: MorphablePosition,
-  t: number
-): CartesianCoordinate {
+export function interpolatePosition(morphable: MorphablePosition, t: number): CartesianCoordinate {
   const clampedT = Math.max(0, Math.min(1, t));
 
   return {
@@ -120,7 +110,7 @@ export function interpolatePosition(
  */
 export function createInterpolatedPositionArray(
   morphablePositions: MorphablePosition[],
-  t: number
+  t: number,
 ): Float32Array {
   const array = new Float32Array(morphablePositions.length * 3);
 
@@ -142,9 +132,7 @@ export function createInterpolatedPositionArray(
 /**
  * Calculate the centroid of a set of positions
  */
-export function calculateCentroid(
-  positions: CartesianCoordinate[]
-): CartesianCoordinate {
+export function calculateCentroid(positions: CartesianCoordinate[]): CartesianCoordinate {
   if (positions.length === 0) {
     return { x: 0, y: 0, z: 0 };
   }
@@ -155,7 +143,7 @@ export function calculateCentroid(
       y: acc.y + pos.y,
       z: acc.z + pos.z,
     }),
-    { x: 0, y: 0, z: 0 }
+    { x: 0, y: 0, z: 0 },
   );
 
   return {
@@ -168,9 +156,7 @@ export function calculateCentroid(
 /**
  * Calculate the geographic centroid from morphable positions
  */
-export function calculateGeoCentroid(
-  positions: MorphablePosition[]
-): GeoCoordinate {
+export function calculateGeoCentroid(positions: MorphablePosition[]): GeoCoordinate {
   if (positions.length === 0) {
     return { longitude: 0, latitude: 0 };
   }
@@ -180,7 +166,7 @@ export function calculateGeoCentroid(
       longitude: acc.longitude + pos.geo.longitude,
       latitude: acc.latitude + pos.geo.latitude,
     }),
-    { longitude: 0, latitude: 0 }
+    { longitude: 0, latitude: 0 },
   );
 
   return {
@@ -194,7 +180,9 @@ export function calculateGeoCentroid(
  */
 export function normalize(v: CartesianCoordinate): CartesianCoordinate {
   const length = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-  if (length === 0) return { x: 0, y: 0, z: 0 };
+  if (length === 0) {
+    return { x: 0, y: 0, z: 0 };
+  }
 
   return {
     x: v.x / length,
@@ -206,10 +194,7 @@ export function normalize(v: CartesianCoordinate): CartesianCoordinate {
 /**
  * Calculate distance between two 3D points
  */
-export function distance(
-  a: CartesianCoordinate,
-  b: CartesianCoordinate
-): number {
+export function distance(a: CartesianCoordinate, b: CartesianCoordinate): number {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const dz = b.z - a.z;
