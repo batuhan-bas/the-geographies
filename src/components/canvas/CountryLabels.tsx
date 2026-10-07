@@ -124,20 +124,27 @@ export const CountryLabels = ({ countries, hideAntarctica = false }: CountryLabe
       text.outlineColor = 0x000000;
       text.fillOpacity = 0;
       text.outlineOpacity = 0;
-      batch.add(text);
       return text;
     });
     return { members, opacity: new Float32Array(members.length) };
-  }, [labelsData, batch]);
-  useEffect(
-    () => () => {
+  }, [labelsData]);
+
+  // Attach/detach in one effect (never inside useMemo): React may run memo
+  // callbacks twice and re-run effects (StrictMode), so mounting must be
+  // symmetric or the batch ends up with orphaned, never-updated members.
+  useEffect(() => {
+    labels.opacity.fill(0);
+    for (const text of labels.members) {
+      batch.add(text);
+    }
+    return () => {
       for (const text of labels.members) {
         batch.remove(text);
+        // Frees GPU buffers only; three.js re-uploads if the text is re-added
         text.dispose();
       }
-    },
-    [labels, batch],
-  );
+    };
+  }, [labels, batch]);
 
   useFrame((_, delta) => {
     const morphProgress = morphProgressRef.current;
