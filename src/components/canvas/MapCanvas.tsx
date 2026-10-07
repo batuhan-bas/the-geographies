@@ -8,9 +8,8 @@ import * as THREE from "three";
 import { Globe } from "./Globe";
 import { useMapStore } from "@/store/mapStore";
 import { useMorphAnimation } from "@/store/hooks";
-import { getFeatureCentroid } from "@/lib/geo/projections";
 import { geoToSphere, GLOBE_RADIUS } from "@/lib/geo/coordinates";
-import type { CountryFeature } from "@/types/geo";
+import type { CountryFeature, CountryGeometryData } from "@/types/geo";
 
 // ==========================================
 // Camera Controller Component
@@ -29,10 +28,7 @@ const CameraController = () => {
       return;
     }
 
-    const centroid = getFeatureCentroid(selectedCountry);
-    if (!centroid) {
-      return;
-    }
+    const centroid = selectedCountry.label;
 
     let targetPosition: THREE.Vector3;
     let targetLookAt: THREE.Vector3;
@@ -169,9 +165,10 @@ const LoadingFallback = () => (
 
 interface SceneProps {
   countries: CountryFeature[];
+  geometryData: CountryGeometryData;
 }
 
-const Scene = ({ countries }: SceneProps) => {
+const Scene = ({ countries, geometryData }: SceneProps) => {
   const { morphProgress } = useMorphAnimation();
 
   return (
@@ -187,7 +184,7 @@ const Scene = ({ countries }: SceneProps) => {
 
       {/* Globe with countries */}
       <Suspense fallback={<LoadingFallback />}>
-        <Globe countries={countries} morphProgress={morphProgress} />
+        <Globe countries={countries} geometryData={geometryData} morphProgress={morphProgress} />
       </Suspense>
 
       {/* Background */}
@@ -202,11 +199,17 @@ const Scene = ({ countries }: SceneProps) => {
 
 export interface MapCanvasProps {
   countries: CountryFeature[];
+  geometryData: CountryGeometryData;
   className?: string;
   showStats?: boolean;
 }
 
-export const MapCanvas = ({ countries, className = "", showStats = false }: MapCanvasProps) => {
+export const MapCanvas = ({
+  countries,
+  geometryData,
+  className = "",
+  showStats = false,
+}: MapCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   return (
@@ -221,7 +224,7 @@ export const MapCanvas = ({ countries, className = "", showStats = false }: MapC
         dpr={[1, 2]}
         shadows={false}
       >
-        <Scene countries={countries} />
+        <Scene countries={countries} geometryData={geometryData} />
         {showStats ? <Stats /> : null}
       </Canvas>
     </div>

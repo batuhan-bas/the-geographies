@@ -87,6 +87,14 @@ pnpm format            # Prettier — write
 pnpm format:check      # Prettier — check only
 ```
 
+### Rebuilding Country Geometry
+
+Country polygons are triangulated at build time (earcut with holes, crack-free curvature subdivision) and shipped as quantized, delta-encoded binary buffers, so the browser never triangulates.
+
+```bash
+pnpm geometry          # assets/geo-src/*.geojson → public/data/countries.{json,bin}
+```
+
 ### Rebuilding Textures
 
 Source images live in `assets/textures-src/` (not deployed). `pnpm textures` builds the KTX2 tiers into `public/textures/` (Basis ETC1S for color maps, zstd-compressed R8 for elevation). It requires [`toktx`](https://github.com/KhronosGroup/KTX-Software/releases) (KTX-Software ≥ 4.3) on `PATH`, or set `TOKTX=/path/to/toktx`.
@@ -112,12 +120,14 @@ src/
 ├── store/                 # Zustand state management
 └── types/                 # TypeScript type definitions
 
+assets/geo-src/            # Natural Earth 50m admin-0 GeoJSON (source)
 assets/textures-src/       # 16K source images (NASA Blue Marble, GEBCO, Natural Earth)
+scripts/build-geometry.mjs # GeoJSON → triangulated, quantized binary geometry
 scripts/build-textures.mjs # Source images → KTX2 tiers
 
 public/
 ├── basis/                 # Basis Universal transcoder (from three.js)
-├── data/                  # GeoJSON country data (Natural Earth)
+├── data/                  # Prebuilt country geometry (countries.json + countries.bin)
 └── textures/              # KTX2 texture tiers (2K–16K)
 ```
 

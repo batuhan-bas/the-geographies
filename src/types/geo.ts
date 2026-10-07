@@ -1,5 +1,3 @@
-import type { Feature, Geometry } from "geojson";
-
 // ==========================================
 // Core Geographic Types
 // ==========================================
@@ -75,7 +73,30 @@ export interface CountryProperties {
   [key: string]: unknown;
 }
 
-export type CountryFeature = Feature<Geometry, CountryProperties>;
+export interface CountryFeature {
+  type: "Feature";
+  /** Index of this country in the prebuilt geometry buffers (public/data/countries.bin) */
+  index: number;
+  properties: CountryProperties;
+  /** Label / camera focus anchor: centroid of the country's largest polygon */
+  label: GeoCoordinate;
+}
+
+/**
+ * Prebuilt geometry for all countries (scripts/build-geometry.mjs), decoded.
+ * Coordinates are lon/lat degrees; `*Country` arrays map each vertex to
+ * its index in the countries list.
+ */
+export interface CountryGeometryData {
+  /** Interleaved lon/lat per fill vertex */
+  fillLonLat: Float32Array;
+  fillCountry: Uint16Array;
+  /** Triangle indices into the fill vertices (global) */
+  fillIndex: Uint32Array;
+  /** Interleaved lon/lat, two vertices per border segment */
+  borderLonLat: Float32Array;
+  borderCountry: Uint16Array;
+}
 
 // ==========================================
 // LOD (Level of Detail) Types

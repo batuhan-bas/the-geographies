@@ -11,7 +11,7 @@ import { TopographyLayer } from "./TopographyLayer";
 import { HeatmapLayer } from "@/components/visualization";
 import { useMapStore } from "@/store/mapStore";
 import { morphProgressRef, sunDirectionRef } from "@/store/hooks";
-import type { CountryFeature } from "@/types/geo";
+import type { CountryFeature, CountryGeometryData } from "@/types/geo";
 
 // ==========================================
 // Globe Component Props
@@ -19,6 +19,7 @@ import type { CountryFeature } from "@/types/geo";
 
 interface GlobeProps {
   countries: CountryFeature[];
+  geometryData: CountryGeometryData;
   morphProgress: number;
   animateSun?: boolean;
   sunSpeed?: number; // Rotation speed (radians per second)
@@ -30,6 +31,7 @@ interface GlobeProps {
 
 export const Globe = ({
   countries,
+  geometryData,
   morphProgress,
   animateSun = true,
   sunSpeed = 0.05, // Slow rotation for gentle day/night cycle
@@ -88,13 +90,18 @@ export const Globe = ({
 
       {/* Country meshes (political layer) - single merged mesh, one draw call */}
       {showPolitical ? (
-        <CountriesLayer countries={countries} hideAntarctica={!isGlobeMode} />
+        <CountriesLayer
+          countries={countries}
+          geometryData={geometryData}
+          hideAntarctica={!isGlobeMode}
+        />
       ) : null}
 
       {/* Country borders (political layer) */}
       {showPolitical ? (
         <CountryBorders
           countries={countries}
+          geometryData={geometryData}
           hideAntarctica={!isGlobeMode}
           color="#ffffff"
           opacity={0.2}

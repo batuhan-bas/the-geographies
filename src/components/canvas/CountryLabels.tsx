@@ -6,7 +6,6 @@ import * as THREE from "three";
 import { BatchedText, Text } from "troika-three-text";
 import type { CountryFeature } from "@/types/geo";
 import { geoToSphere, geoToFlat, GLOBE_RADIUS } from "@/lib/geo/coordinates";
-import { getFeatureCentroid } from "@/lib/geo/projections";
 import { morphProgressRef } from "@/store/hooks";
 
 // ==========================================
@@ -36,9 +35,9 @@ interface LabelData {
 }
 
 function calculateLabelData(feature: CountryFeature): LabelData | null {
-  const centroid = getFeatureCentroid(feature);
+  const centroid = feature.label;
   const name = feature.properties?.name || "";
-  if (!centroid || !name) {
+  if (!name) {
     return null;
   }
 
