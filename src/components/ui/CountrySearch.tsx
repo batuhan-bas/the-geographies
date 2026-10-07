@@ -138,7 +138,7 @@ export const CountrySearch = () => {
   return (
     <div
       ref={containerRef}
-      className="absolute top-5 left-1/2 z-20 w-[min(440px,calc(100%-32px))] -translate-x-1/2"
+      className="absolute top-5 left-1/2 z-20 w-[min(440px,calc(100%-32px))] -translate-x-1/2 sm:left-5 sm:w-[min(360px,calc(100%-420px))] sm:translate-x-0 xl:left-1/2 xl:w-[440px] xl:-translate-x-1/2"
     >
       <label
         className="glass flex h-11 items-center gap-2 rounded-control pl-4 pr-3 transition-shadow duration-(--dur-hover) focus-within:shadow-[var(--shadow-panel),inset_0_1px_0_var(--glass-hi),0_0_0_3px_var(--accent-soft)]"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useState } from "react";
 import { gsap } from "gsap";
 import {
   useViewMode,
@@ -12,237 +12,116 @@ import {
 import { useMapStore } from "@/store/mapStore";
 import { PROJECTIONS, PROJECTION_LABELS, type ProjectionType } from "@/lib/geo/projection";
 import { transitionProjection } from "@/lib/geo/projectionTransition";
-import type { MapLayer } from "@/types/geo";
+import type { MapLayer, ViewMode } from "@/types/geo";
 
 // ==========================================
-// Icons
+// Layer configuration (icon tile colors: MASTER.md › Color)
 // ==========================================
 
-const FlagIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-    <line x1="4" y1="22" x2="4" y2="15" />
-  </svg>
-);
+interface LayerConfig {
+  id: MapLayer;
+  label: string;
+  tile: string;
+  icon: React.ReactNode;
+  /** Only meaningful while this other layer is on */
+  requires?: MapLayer;
+}
 
-const MountainIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="m8 3 4 8 5-5 5 15H2L8 3z" />
-  </svg>
-);
-
-const ContourIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10" />
-    <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6" />
-    <path d="M12 10a2 2 0 0 0-2 2 2 2 0 0 0 2 2" />
-  </svg>
-);
-
-const ChartIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M3 3v18h18" />
-    <path d="M18 17V9" />
-    <path d="M13 17V5" />
-    <path d="M8 17v-3" />
-  </svg>
-);
-
-const FlameIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
-  </svg>
-);
-
-// ==========================================
-// Layer Configuration
-// ==========================================
-
-const LAYERS: { id: MapLayer; label: string; icon: React.ReactNode; requires?: MapLayer }[] = [
-  { id: "political", label: "Political", icon: <FlagIcon className="w-[15px] h-[15px]" /> },
-  { id: "physical", label: "Physical", icon: <MountainIcon className="w-[15px] h-[15px]" /> },
-  { id: "topography", label: "Topography", icon: <ContourIcon className="w-[15px] h-[15px]" /> },
-  {
-    id: "choropleth",
-    label: "Data",
-    icon: <ChartIcon className="w-[15px] h-[15px]" />,
-    requires: "political",
-  },
-  { id: "heatmap", label: "Heatmap", icon: <FlameIcon className="w-[15px] h-[15px]" /> },
+const LAYERS: LayerConfig[] = [
+  { id: "political", label: "Political", tile: "#5e5ce6", icon: <FlagIcon /> },
+  { id: "physical", label: "Physical", tile: "#30a46c", icon: <MountainIcon /> },
+  { id: "topography", label: "Topography", tile: "#bf8b2e", icon: <ContourIcon /> },
+  { id: "choropleth", label: "Data", tile: "#0a84ff", icon: <ChartIcon />, requires: "political" },
+  { id: "heatmap", label: "Heatmap", tile: "#ff6b3d", icon: <FlameIcon /> },
 ];
 
-const GLASS_STYLE = {
-  background: "rgba(8, 13, 26, 0.84)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  border: "1px solid rgba(255, 255, 255, 0.07)",
-  boxShadow:
-    "0 20px 60px rgba(0, 0, 0, 0.55), 0 0 0 0.5px rgba(255, 255, 255, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.06)",
-} as const;
-
 // ==========================================
-// ControlPanel Component
+// ControlPanel — Apple Maps style map controls (bottom-left)
 // ==========================================
 
 export const ControlPanel = () => {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (containerRef.current) {
-      gsap.fromTo(
-        containerRef.current,
-        { opacity: 0, y: 20, scale: 0.95 },
-        { opacity: 1, y: 0, scale: 1, duration: 0.5, delay: 0.2, ease: "power3.out" },
-      );
-    }
-  }, []);
-
-  return (
-    <div ref={containerRef} className="absolute bottom-6 left-6 z-10">
-      <div className="w-[214px] rounded-2xl overflow-hidden" style={GLASS_STYLE}>
-        <ViewModeSection />
-
-        <ProjectionSection />
-
-        <div style={{ height: "1px", background: "rgba(255,255,255,0.05)", margin: "0 10px" }} />
-
-        <LayersSection />
-
-        <div style={{ height: "1px", background: "rgba(255,255,255,0.05)", margin: "0 10px" }} />
-
-        <EffectsSection />
-      </div>
-    </div>
-  );
-};
-
-// ==========================================
-// View Mode Section
-// ==========================================
-
-const ViewModeSection = () => {
   const { viewMode, setViewMode } = useViewMode();
   const { setMorphProgress, setIsAnimating, isAnimating } = useMorphAnimation();
 
-  const handleToggle = (newMode: "globe" | "flat") => {
-    if (viewMode === newMode || isAnimating) {
+  // The view the user picked; updates immediately (the store's viewMode
+  // only flips once the morph animation completes)
+  const [selectedView, setSelectedView] = useState<ViewMode>(viewMode);
+  const isFlat = selectedView === "flat";
+
+  const handleViewChange = (next: ViewMode) => {
+    if (next === selectedView || isAnimating) {
       return;
     }
-
-    const targetProgress = newMode === "globe" ? 0 : 1;
+    setSelectedView(next);
     setIsAnimating(true);
-
     gsap.to(morphProgressRef, {
-      current: targetProgress,
+      current: next === "globe" ? 0 : 1,
       duration: 0.8,
       ease: "power2.inOut",
       onComplete: () => {
-        setMorphProgress(targetProgress);
-        setViewMode(newMode);
+        setMorphProgress(next === "globe" ? 0 : 1);
+        setViewMode(next);
         setIsAnimating(false);
       },
     });
   };
 
   return (
-    <div className="p-2.5">
-      <div className="flex rounded-xl p-[3px]" style={{ background: "rgba(255,255,255,0.04)" }}>
-        <ViewButton
-          active={viewMode === "globe"}
-          onClick={() => handleToggle("globe")}
-          icon={<GlobeIcon className="w-3.5 h-3.5" />}
-          label="Globe"
-        />
-        <ViewButton
-          active={viewMode === "flat"}
-          onClick={() => handleToggle("flat")}
-          icon={<MapIcon className="w-3.5 h-3.5" />}
-          label="Flat"
-        />
-      </div>
+    <div className="glass enter-spring absolute bottom-5 left-5 z-20 grid w-[268px] gap-3 rounded-panel p-3 [--enter-y:10px]">
+      <ViewSegment value={selectedView} onChange={handleViewChange} />
+      <ProjectionRow open={isFlat} />
+      <SectionLabel>Map layers</SectionLabel>
+      <LayerList isFlat={isFlat} />
     </div>
   );
 };
 
-const ViewButton = ({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-}) => (
-  <button
-    onClick={onClick}
-    className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-all duration-200"
-    style={
-      active
-        ? {
-            background: "rgba(255,255,255,0.11)",
-            color: "rgba(255,255,255,0.95)",
-            boxShadow: "0 1px 6px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08)",
-          }
-        : { color: "rgba(255,255,255,0.36)" }
-    }
+// ==========================================
+// Globe / Flat segmented control
+// ==========================================
+
+const ViewSegment = ({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) => (
+  <div
+    className="relative grid grid-cols-2 rounded-[10px] bg-fill-1 p-0.5"
+    role="radiogroup"
+    aria-label="View"
   >
-    {icon}
-    {label}
-  </button>
+    <span
+      aria-hidden="true"
+      className={`absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded-thumb bg-fill-3 shadow-(--shadow-thumb) transition-transform duration-(--dur-spring) ease-(--ease-spring) ${
+        value === "flat" ? "translate-x-full" : ""
+      }`}
+    />
+    {(["globe", "flat"] as const).map((mode) => {
+      const active = value === mode;
+      return (
+        <button
+          key={mode}
+          type="button"
+          role="radio"
+          aria-checked={active}
+          onClick={() => onChange(mode)}
+          className={`relative z-10 flex cursor-pointer items-center justify-center gap-1.5 py-[7px] text-[13px] font-semibold transition-colors duration-(--dur-hover) ${
+            active ? "text-label" : "text-label-2 hover:text-label"
+          }`}
+        >
+          {mode === "globe" ? <GlobeIcon /> : <MapIcon />}
+          {mode === "globe" ? "Globe" : "Flat"}
+        </button>
+      );
+    })}
+  </div>
 );
 
 // ==========================================
-// Projection Section
+// Projection chips (flat mode only)
 // ==========================================
 
-const ProjectionSection = () => {
+const ProjectionRow = ({ open }: { open: boolean }) => {
   const projection = useMapStore((state) => state.projection);
   const setProjection = useMapStore((state) => state.setProjection);
-  const isFlat = useMapStore((state) => state.viewMode === "flat");
 
-  const handleSelect = (next: ProjectionType) => {
+  const select = (next: ProjectionType) => {
     if (next === projection) {
       return;
     }
@@ -251,267 +130,221 @@ const ProjectionSection = () => {
   };
 
   return (
-    <div className="px-2.5 pb-2.5">
-      <p
-        className="text-[9px] font-semibold tracking-[0.14em] uppercase mb-1.5 px-1.5"
-        style={{ color: "rgba(255,255,255,0.22)" }}
-      >
-        Projection{isFlat ? "" : " (flat)"}
-      </p>
-      <div className="grid grid-cols-2 gap-[3px]">
-        {PROJECTIONS.map((id) => {
-          const active = id === projection;
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => handleSelect(id)}
-              aria-pressed={active}
-              className="py-1.5 px-2 rounded-lg text-[11px] font-medium transition-all duration-200"
-              style={
-                active
-                  ? {
-                      background: "rgba(255,255,255,0.11)",
-                      color: "rgba(255,255,255,0.95)",
-                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
-                    }
-                  : { background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.4)" }
-              }
-            >
-              {PROJECTION_LABELS[id]}
-            </button>
-          );
-        })}
+    // Collapses to zero height in globe mode; hidden content leaves the tab order
+    <div
+      className={`grid transition-[grid-template-rows,opacity,margin] ease-(--ease-spring) ${
+        open
+          ? "grid-rows-[1fr] opacity-100 duration-(--dur-spring)"
+          : "-mt-3 grid-rows-[0fr] opacity-0 duration-(--dur-exit)"
+      }`}
+      aria-hidden={!open}
+      inert={!open}
+    >
+      <div className="grid min-h-0 gap-2 overflow-hidden">
+        <SectionLabel>Projection</SectionLabel>
+        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Projection">
+          {PROJECTIONS.map((id) => {
+            const active = id === projection;
+            return (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => select(id)}
+                className={`pressable rounded-full px-2.5 py-1.5 text-[12.5px] font-medium ${
+                  active ? "bg-accent text-white" : "bg-fill-1 text-label-2 hover:bg-fill-2"
+                }`}
+              >
+                {PROJECTION_LABELS[id]}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 };
 
 // ==========================================
-// Layers Section
+// Layer list (grouped rows with switches)
 // ==========================================
 
-const LayersSection = () => {
+const LayerList = ({ isFlat }: { isFlat: boolean }) => {
   const { activeLayers, toggleLayer } = useLayers();
+  const { enableDayNight, toggleDayNight } = useDayNight();
 
   return (
-    <div className="px-2.5 py-3">
-      <p
-        className="text-[9px] font-semibold tracking-[0.14em] uppercase mb-2 px-1.5"
-        style={{ color: "rgba(255,255,255,0.22)" }}
-      >
-        Layers
-      </p>
-      <div className="space-y-px">
-        {LAYERS.filter((layer) => !layer.requires || activeLayers.has(layer.requires)).map(
-          (layer) => (
-            <LayerButton
-              key={layer.id}
-              icon={layer.icon}
-              label={layer.label}
-              active={activeLayers.has(layer.id)}
-              onToggle={() => toggleLayer(layer.id)}
-            />
-          ),
-        )}
-      </div>
+    <div className="overflow-hidden rounded-control bg-fill-1">
+      {LAYERS.map((layer) => {
+        const disabled = layer.requires ? !activeLayers.has(layer.requires) : false;
+        return (
+          <SwitchRow
+            key={layer.id}
+            label={layer.label}
+            tile={layer.tile}
+            icon={layer.icon}
+            checked={activeLayers.has(layer.id) && !disabled}
+            disabled={disabled}
+            hint={disabled ? "Needs Political" : undefined}
+            onToggle={() => toggleLayer(layer.id)}
+          />
+        );
+      })}
+      <SwitchRow
+        label="Day / Night"
+        tile="#3a3a8c"
+        icon={<MoonIcon />}
+        checked={enableDayNight && !isFlat}
+        disabled={isFlat}
+        hint={isFlat ? "Globe only" : undefined}
+        onToggle={toggleDayNight}
+      />
     </div>
   );
 };
 
-const LayerButton = ({
-  icon,
+const SwitchRow = ({
   label,
-  active,
+  tile,
+  icon,
+  checked,
+  disabled,
+  hint,
   onToggle,
 }: {
-  icon: React.ReactNode;
   label: string;
-  active: boolean;
+  tile: string;
+  icon: React.ReactNode;
+  checked: boolean;
+  disabled?: boolean;
+  hint?: string;
   onToggle: () => void;
 }) => (
   <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    disabled={disabled}
     onClick={onToggle}
-    className="w-full flex items-center gap-2.5 py-[9px] pl-3.5 pr-2.5 rounded-xl text-xs transition-all duration-150 relative"
-    style={active ? { background: "rgba(59, 130, 246, 0.09)" } : {}}
+    className="group grid w-full cursor-pointer grid-cols-[28px_1fr_auto] items-center gap-3 px-3 py-[9px] text-left transition-colors duration-(--dur-hover) not-first:shadow-[inset_52px_0.5px_0_-52px_var(--sep)] hover:bg-fill-1 disabled:cursor-default disabled:hover:bg-transparent"
   >
-    {/* Left accent bar */}
     <span
-      className="absolute left-[5px] top-1/2 -translate-y-1/2 w-[2px] rounded-full transition-all duration-200"
-      style={{
-        height: "52%",
-        background: active ? "rgba(96, 165, 250, 0.85)" : "rgba(255,255,255,0.07)",
-      }}
-    />
-
-    {/* Icon */}
-    <span
-      className="transition-colors duration-150 flex-shrink-0"
-      style={{ color: active ? "#60a5fa" : "rgba(255,255,255,0.28)" }}
+      className="grid size-7 place-items-center rounded-lg text-white group-disabled:opacity-40"
+      style={{ background: tile }}
+      aria-hidden="true"
     >
       {icon}
     </span>
-
-    {/* Label */}
-    <span
-      className="font-medium flex-1 text-left transition-colors duration-150"
-      style={{ color: active ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.4)" }}
-    >
-      {label}
+    <span className="min-w-0 group-disabled:opacity-40">
+      <span className="block text-[14px] font-medium text-label">{label}</span>
+      {hint ? <span className="block text-[11.5px] text-label-3">{hint}</span> : null}
     </span>
-
-    {/* Status indicator */}
     <span
-      className="w-[5px] h-[5px] rounded-full flex-shrink-0 transition-all duration-200"
-      style={{ background: active ? "#60a5fa" : "rgba(255,255,255,0.1)" }}
-    />
+      aria-hidden="true"
+      className={`relative h-6 w-10 rounded-full transition-colors duration-(--dur-hover) group-disabled:opacity-40 ${
+        checked ? "bg-on" : "bg-fill-3"
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow-[0_2px_4px_rgba(0,0,0,0.3)] transition-transform duration-(--dur-spring) ease-(--ease-spring) ${
+          checked ? "translate-x-4" : ""
+        }`}
+      />
+    </span>
   </button>
 );
 
+const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+  <span className="px-1 text-[12px] font-semibold text-label-3">{children}</span>
+);
+
 // ==========================================
-// Effects Section
+// Icons (24px grid, stroke)
 // ==========================================
 
-const EffectsSection = () => {
-  const { enableDayNight, toggleDayNight } = useDayNight();
-  const { viewMode } = useViewMode();
-  const isDisabled = viewMode === "flat";
-
+function Icon({ children, size = 15 }: { children: React.ReactNode; size?: number }) {
   return (
-    <div className="px-2.5 py-3">
-      <p
-        className="text-[9px] font-semibold tracking-[0.14em] uppercase mb-2 px-1.5"
-        style={{ color: "rgba(255,255,255,0.22)" }}
-      >
-        Effects
-      </p>
-      <button
-        onClick={toggleDayNight}
-        disabled={isDisabled}
-        className="w-full flex items-center gap-2.5 py-[9px] pl-3.5 pr-2.5 rounded-xl text-xs transition-all duration-150 relative"
-        style={
-          isDisabled
-            ? { cursor: "not-allowed" }
-            : enableDayNight
-              ? { background: "rgba(245, 158, 11, 0.08)" }
-              : {}
-        }
-      >
-        {/* Left accent bar */}
-        <span
-          className="absolute left-[5px] top-1/2 -translate-y-1/2 w-[2px] rounded-full transition-all duration-200"
-          style={{
-            height: "52%",
-            background:
-              enableDayNight && !isDisabled ? "rgba(251, 191, 36, 0.85)" : "rgba(255,255,255,0.07)",
-          }}
-        />
-
-        {/* Icon */}
-        <span
-          className="transition-colors duration-150 flex-shrink-0"
-          style={{
-            color: enableDayNight && !isDisabled ? "#fbbf24" : "rgba(255,255,255,0.28)",
-          }}
-        >
-          <SunMoonIcon className="w-[15px] h-[15px]" />
-        </span>
-
-        {/* Label */}
-        <span
-          className="font-medium flex-1 text-left transition-colors duration-150"
-          style={{
-            color:
-              enableDayNight && !isDisabled
-                ? "rgba(255,255,255,0.88)"
-                : isDisabled
-                  ? "rgba(255,255,255,0.18)"
-                  : "rgba(255,255,255,0.4)",
-          }}
-        >
-          Day / Night
-        </span>
-
-        {/* Toggle Switch */}
-        <span
-          className="flex-shrink-0 rounded-full p-[2px] transition-all duration-300 flex items-center"
-          style={{
-            width: "30px",
-            height: "17px",
-            background: isDisabled
-              ? "rgba(255,255,255,0.06)"
-              : enableDayNight
-                ? "rgba(251, 191, 36, 0.6)"
-                : "rgba(255,255,255,0.1)",
-          }}
-        >
-          <span
-            className="block rounded-full bg-white shadow-sm transition-all duration-300"
-            style={{
-              width: "13px",
-              height: "13px",
-              transform: enableDayNight ? "translateX(13px)" : "translateX(0)",
-              opacity: isDisabled ? 0.25 : 1,
-            }}
-          />
-        </span>
-      </button>
-    </div>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
   );
-};
+}
 
-const GlobeIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx="12" cy="12" r="10" />
-    <ellipse cx="12" cy="12" rx="4" ry="10" />
-    <path d="M2 12h20" />
-  </svg>
-);
+function GlobeIcon() {
+  return (
+    <Icon size={14}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" />
+    </Icon>
+  );
+}
 
-const MapIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
-    <line x1="9" y1="3" x2="9" y2="18" />
-    <line x1="15" y1="6" x2="15" y2="21" />
-  </svg>
-);
+function MapIcon() {
+  return (
+    <Icon size={14}>
+      <path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z" />
+      <path d="M9 4v14M15 6v14" />
+    </Icon>
+  );
+}
 
-const SunMoonIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx="12" cy="12" r="4" />
-    <path d="M12 2v2" />
-    <path d="M12 20v2" />
-    <path d="m4.93 4.93 1.41 1.41" />
-    <path d="m17.66 17.66 1.41 1.41" />
-    <path d="M2 12h2" />
-    <path d="M20 12h2" />
-    <path d="m6.34 17.66-1.41 1.41" />
-    <path d="m19.07 4.93-1.41 1.41" />
-  </svg>
-);
+function FlagIcon() {
+  return (
+    <Icon>
+      <path d="M5 21V4M5 4h11l-2 4 2 4H5" />
+    </Icon>
+  );
+}
+
+function MountainIcon() {
+  return (
+    <Icon>
+      <path d="m3 20 6-11 4 6 3-4 5 9z" />
+    </Icon>
+  );
+}
+
+function ContourIcon() {
+  return (
+    <Icon>
+      <path d="M3 17c4-6 7 2 11-4s5-2 7-4M3 12c4-6 7 2 11-4" />
+    </Icon>
+  );
+}
+
+function ChartIcon() {
+  return (
+    <Icon>
+      <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+    </Icon>
+  );
+}
+
+function FlameIcon() {
+  return (
+    <Icon>
+      <path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z" />
+    </Icon>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z" />
+    </svg>
+  );
+}
 
 export default ControlPanel;

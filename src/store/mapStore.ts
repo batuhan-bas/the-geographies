@@ -25,6 +25,7 @@ const initialCameraState: CameraState = {
 const initialState: MapState = {
   viewMode: "globe",
   projection: "naturalEarth",
+  focusNonce: 0,
   activeLayers: new Set<MapLayer>(["political"]),
   lodLevel: "medium",
   enableDayNight: true,
@@ -57,6 +58,10 @@ export const useMapStore = create<MapStore>()(
         viewMode: mode,
         morphProgress: mode === "globe" ? 0 : 1,
       });
+    },
+
+    requestFocus: () => {
+      set((state) => ({ focusNonce: state.focusNonce + 1 }));
     },
 
     setProjection: (projection) => {

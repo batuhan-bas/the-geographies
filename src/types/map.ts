@@ -16,6 +16,8 @@ import type {
 export interface MapState {
   // View Configuration
   viewMode: ViewMode;
+  /** Incremented to re-fly the camera to the selected country */
+  focusNonce: number;
   /** Flat-mode map projection */
   projection: ProjectionType;
   activeLayers: Set<MapLayer>;
@@ -45,6 +47,7 @@ export interface MapActions {
   // View Mode
   setViewMode: (mode: ViewMode) => void;
   setProjection: (projection: ProjectionType) => void;
+  requestFocus: () => void;
   toggleViewMode: () => void;
 
   // Layers

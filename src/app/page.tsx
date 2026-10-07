@@ -105,7 +105,6 @@ export default function HomePage() {
             countries={countryData.countries}
             geometryData={countryData.geometry}
             className="absolute inset-0"
-            showStats={process.env.NODE_ENV === "development"}
           />
         )}
       </Suspense>
@@ -113,13 +112,15 @@ export default function HomePage() {
       {/* UI Overlay */}
       <CountrySearch />
       <ControlPanel />
-      <CountryPanel />
+      <CountryPanel geometryData={countryData?.geometry} />
       <ChoroplethLegend />
       <HeatmapLegend />
 
       {/* Instructions */}
-      <div className="absolute bottom-6 right-6 z-10 text-right">
-        <p className="text-zinc-600 text-xs">Drag to rotate · Scroll to zoom · Click for details</p>
+      <div className="pointer-events-none absolute right-5 bottom-5 z-10 hidden text-right md:block">
+        <p className="text-[12px] text-label-3">
+          Drag to rotate · Scroll to zoom · Click for details
+        </p>
       </div>
     </main>
   );
