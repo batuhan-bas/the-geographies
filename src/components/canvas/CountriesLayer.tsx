@@ -12,6 +12,7 @@ import { morphProgressRef, sunDirectionRef } from "@/store/hooks";
 import { interpolateColor } from "@/lib/visualization/colorScales";
 import { getCountryColor } from "@/lib/geo/countryColors";
 import { buildCountryFillGeometry } from "@/lib/geo/mergeCountries";
+import { useProgressiveTexture } from "@/lib/textures/useProgressiveTexture";
 import type { CountryFeature, CountryGeometryData } from "@/types/geo";
 
 // ==========================================
@@ -21,6 +22,7 @@ import type { CountryFeature, CountryGeometryData } from "@/types/geo";
 const NO_COUNTRY = -1;
 const CLICK_MOVE_TOLERANCE_PX = 5;
 const SELECTED_COLOR = new THREE.Color("#ffd700");
+const NIGHT_TIERS_K = [2, 4, 8];
 
 // ==========================================
 // Shaders
@@ -38,8 +40,12 @@ const morphVertexShader = /* glsl */ `
   varying vec3 vViewPosition;
   varying vec3 vWorldPosition;
   varying float vCountryIndex;
+  varying vec2 vGeoUv;
 
   void main() {
+    // Equirectangular UV from the flat position (x: [-2, 2], y: [-1, 1])
+    vGeoUv = vec2(flatPosition.x / 4.0 + 0.5, flatPosition.y / 2.0 + 0.5);
+
     vec3 morphedPosition = mix(spherePosition, flatPosition, morphProgress);
 
     // Sphere normal points outward from center, flat normal points towards +Z
@@ -77,11 +83,14 @@ const colorFragmentShader = /* glsl */ `
   uniform float hoveredIndex;
   uniform float selectedIndex;
   uniform vec3 selectedColor;
+  uniform sampler2D nightMap;
+  uniform bool hasNightMap;
 
   varying vec3 vNormal;
   varying vec3 vViewPosition;
   varying vec3 vWorldPosition;
   varying float vCountryIndex;
+  varying vec2 vGeoUv;
 
   ${styleLookupChunk}
 
@@ -136,9 +145,13 @@ const colorFragmentShader = /* glsl */ `
     // Night - very dark with blue tint
     vec3 nightColor = color * 0.05 + vec3(0.02, 0.04, 0.12);
 
-    // City lights effect on night side
-    float cityNoise = fract(sin(dot(vWorldPosition.xy, vec2(12.9898, 78.233))) * 43758.5453);
-    vec3 cityLights = vec3(1.0, 0.8, 0.4) * step(0.97, cityNoise) * 0.3 * (1.0 - dayNightFactor);
+    // City lights on the night side: NASA Black Marble
+    vec3 cityLights = vec3(0.0);
+    if (hasNightMap) {
+      vec3 lights = texture2D(nightMap, vGeoUv).rgb;
+      cityLights = pow(lights, vec3(1.4)) * vec3(1.5, 1.25, 0.9);
+    }
+    cityLights *= 1.0 - smoothstep(0.0, 0.6, dayNightFactor);
 
     // Twilight glow
     float twilightGlow = smoothstep(0.0, 0.3, dayNightFactor) * (1.0 - smoothstep(0.3, 0.6, dayNightFactor));
@@ -291,6 +304,8 @@ export const CountriesLayer = ({
           hoveredIndex: { value: NO_COUNTRY },
           selectedIndex: { value: NO_COUNTRY },
           selectedColor: { value: SELECTED_COLOR },
+          nightMap: { value: null },
+          hasNightMap: { value: false },
           styleMap: { value: styleTexture },
           countryCount: { value: countryCount },
         },
@@ -431,6 +446,13 @@ export const CountriesLayer = ({
       document.body.style.cursor = "auto";
     };
   }, [gl]);
+
+  // ---------- Night lights ----------
+  const nightTexture = useProgressiveTexture("earth_night", NIGHT_TIERS_K);
+  useEffect(() => {
+    material.uniforms.nightMap.value = nightTexture;
+    material.uniforms.hasNightMap.value = nightTexture !== null;
+  }, [material, nightTexture]);
 
   // ---------- Selection ----------
   useEffect(() => {

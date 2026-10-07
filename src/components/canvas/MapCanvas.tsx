@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useCallback } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
-import { OrbitControls, PerspectiveCamera, Stats } from "@react-three/drei";
+import { OrbitControls, PerspectiveCamera, Stars, Stats } from "@react-three/drei";
 import { gsap } from "gsap";
 import * as THREE from "three";
 import { Globe } from "./Globe";
@@ -186,6 +186,9 @@ const Scene = ({ countries, geometryData }: SceneProps) => {
       <Suspense fallback={<LoadingFallback />}>
         <Globe countries={countries} geometryData={geometryData} morphProgress={morphProgress} />
       </Suspense>
+
+      {/* Starfield (static: no twinkle animation, so it costs nothing per frame) */}
+      <Stars radius={60} depth={40} count={4000} factor={3} saturation={0} fade speed={0} />
 
       {/* Background */}
       <color attach="background" args={["#0a0a1a"]} />

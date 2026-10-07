@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, Suspense } from "react";
+import { useMemo, useRef, Suspense } from "react";
 import { useFrame } from "@react-three/fiber";
 import type * as THREE from "three";
 import { CountriesLayer } from "./CountriesLayer";
@@ -9,8 +9,10 @@ import { CountryLabels } from "./CountryLabels";
 import { PhysicalGlobe } from "./PhysicalGlobe";
 import { TopographyLayer } from "./TopographyLayer";
 import { HeatmapLayer } from "@/components/visualization";
+import { Atmosphere } from "@/components/effects";
 import { useMapStore } from "@/store/mapStore";
-import { morphProgressRef, sunDirectionRef } from "@/store/hooks";
+import { sunDirectionRef } from "@/store/hooks";
+import { setSunDirectionFromDate } from "@/lib/geo/sun";
 import type { CountryFeature, CountryGeometryData } from "@/types/geo";
 
 // ==========================================
@@ -21,37 +23,30 @@ interface GlobeProps {
   countries: CountryFeature[];
   geometryData: CountryGeometryData;
   morphProgress: number;
-  animateSun?: boolean;
-  sunSpeed?: number; // Rotation speed (radians per second)
+  /**
+   * Simulation speed relative to real time (1 = the sun is where it really is
+   * right now; e.g. 3600 = one hour per second for a time-lapse)
+   */
+  timeScale?: number;
 }
 
 // ==========================================
 // Globe Component
 // ==========================================
 
-export const Globe = ({
-  countries,
-  geometryData,
-  morphProgress,
-  animateSun = true,
-  sunSpeed = 0.05, // Slow rotation for gentle day/night cycle
-}: GlobeProps) => {
+export const Globe = ({ countries, geometryData, morphProgress, timeScale = 1 }: GlobeProps) => {
   const groupRef = useRef<THREE.Group>(null);
   const showPhysical = useMapStore((state) => state.activeLayers.has("physical"));
   const showTopography = useMapStore((state) => state.activeLayers.has("topography"));
   const showPolitical = useMapStore((state) => state.activeLayers.has("political"));
+  const enableDayNight = useMapStore((state) => state.enableDayNight);
 
-  // Sun angle lives in a ref: mutating the shared sun vector avoids re-rendering
-  // the whole scene graph every frame. Shader uniforms hold the same Vector3.
-  const sunAngleRef = useRef(0);
+  // Real sun position from a simulation clock (starts at "now"). The shared
+  // sun vector is mutated in place, so no React re-render happens per frame.
+  const simClock = useMemo(() => ({ date: new Date() }), []);
   useFrame((_, delta) => {
-    if (!animateSun || morphProgressRef.current >= 0.5) {
-      return;
-    }
-    sunAngleRef.current += delta * sunSpeed;
-    const angle = sunAngleRef.current;
-    // Sun rotates around the Y axis (equator plane), slight tilt for more interesting lighting
-    sunDirectionRef.current.set(Math.cos(angle), 0.3, Math.sin(angle)).normalize();
+    simClock.date.setTime(simClock.date.getTime() + delta * 1000 * timeScale);
+    setSunDirectionFromDate(simClock.date, sunDirectionRef.current);
   });
 
   const isGlobeMode = morphProgress < 0.5;
@@ -110,6 +105,9 @@ export const Globe = ({
 
       {/* Country labels (political layer, zoom-dependent) */}
       {showPolitical ? <CountryLabels countries={countries} hideAntarctica={!isGlobeMode} /> : null}
+
+      {/* Sun-lit atmosphere glow (globe mode only) */}
+      <Atmosphere sunLit={enableDayNight} />
 
       {/* Heatmap visualization layer */}
       <HeatmapLayer />

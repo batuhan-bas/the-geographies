@@ -21,6 +21,9 @@ const FLAT_Z_OFFSET = -0.01; // Z offset in flat mode (behind political layer)
 
 // Available KTX2 tiers (see scripts/build-textures.mjs)
 const DAYMAP_TIERS_K = [2, 4, 8, 16];
+const NIGHT_TIERS_K = [2, 4, 8];
+// Elevation is only used as a water mask for ocean specular, so low tiers suffice
+const WATER_MASK_TIERS_K = [2, 4];
 
 // ==========================================
 // PhysicalGlobe Component
@@ -33,6 +36,11 @@ export const PhysicalGlobe = () => {
 
   // Progressive KTX2: 2K preview → device tier → 16K when zoomed in (desktop)
   const dayTexture = useProgressiveTexture("earth_daymap", DAYMAP_TIERS_K);
+  // NASA Black Marble city lights for the night side
+  const nightTexture = useProgressiveTexture("earth_night", NIGHT_TIERS_K);
+  const elevationTexture = useProgressiveTexture("earth_elevation", WATER_MASK_TIERS_K, {
+    srgb: false,
+  });
 
   // Create morphable geometry with sphere and flat positions
   // Uses same coordinate system as coordinates.ts for alignment with political layer
@@ -121,6 +129,10 @@ export const PhysicalGlobe = () => {
         uniforms: {
           morphProgress: { value: morphProgressRef.current },
           dayMap: { value: null },
+          nightMap: { value: null },
+          elevationMap: { value: null },
+          hasNightMap: { value: false },
+          hasElevationMap: { value: false },
           // Shared reference: Globe mutates it in place, no per-frame copy needed
           sunDirection: { value: sunDirectionRef.current },
           enableDayNight: { value: enableDayNight },
@@ -151,6 +163,10 @@ export const PhysicalGlobe = () => {
       `,
         fragmentShader: `
         uniform sampler2D dayMap;
+        uniform sampler2D nightMap;
+        uniform sampler2D elevationMap;
+        uniform bool hasNightMap;
+        uniform bool hasElevationMap;
         uniform float morphProgress;
         uniform vec3 sunDirection;
         uniform bool enableDayNight;
@@ -164,25 +180,22 @@ export const PhysicalGlobe = () => {
 
           // Flat mode: show clean texture with gentle lighting
           float flatBlend = smoothstep(0.3, 0.7, morphProgress);
+          vec3 flatColor = texColor.rgb * 0.85;
+          flatColor = flatColor / (flatColor + vec3(0.6));
           if (flatBlend > 0.99) {
-            // Pure flat mode - uniform soft lighting on texture
-            vec3 flatColor = texColor.rgb * 0.85;
-            flatColor = flatColor / (flatColor + vec3(0.6));
             gl_FragColor = vec4(flatColor, 1.0);
             return;
           }
 
           vec3 normal = normalize(vNormal);
-
           if (!gl_FrontFacing) {
             normal = -normal;
           }
+          vec3 viewDir = normalize(cameraPosition - vWorldPosition);
 
           float dayNightFactor = 1.0;
-
           if (enableDayNight && morphProgress < 0.5) {
-            vec3 surfaceDir = normalize(vWorldPosition);
-            float sunDot = dot(surfaceDir, sunDirection);
+            float sunDot = dot(normalize(vWorldPosition), sunDirection);
             dayNightFactor = smoothstep(-0.1, 0.15, sunDot);
           }
 
@@ -190,35 +203,45 @@ export const PhysicalGlobe = () => {
           float diffuse = max(dot(normal, sunDirection), 0.0);
           vec3 dayColor = texColor.rgb * (0.5 + diffuse * 0.7);
 
+          // Ocean sun glint: water = sea-level elevation AND blue-dominant color
+          if (hasElevationMap) {
+            float elevation = texture2D(elevationMap, vUv).r;
+            float water = (1.0 - smoothstep(0.0, 0.01, elevation))
+              * smoothstep(0.0, 0.06, texColor.b - texColor.r);
+            vec3 halfDir = normalize(sunDirection + viewDir);
+            float nDotH = max(dot(normal, halfDir), 0.0);
+            // Sharp sun glint + broad sheen
+            float specular = pow(nDotH, 160.0) * 2.5 + pow(nDotH, 18.0) * 0.3;
+            // Sky reflection grows toward the limb (Schlick fresnel)
+            float fresnelSea = 0.02 + 0.98 * pow(1.0 - max(dot(normal, viewDir), 0.0), 5.0);
+            dayColor += water * diffuse * (vec3(1.0, 0.92, 0.78) * specular + vec3(0.12, 0.25, 0.45) * fresnelSea);
+          }
+
           // Night side - very dark blue
           vec3 nightColor = texColor.rgb * 0.02 + vec3(0.01, 0.02, 0.06);
 
-          // City lights simulation
-          float cityNoise = fract(sin(dot(vUv * 100.0, vec2(12.9898, 78.233))) * 43758.5453);
-          float landMask = step(0.3, texColor.g - texColor.b * 0.5);
-          vec3 cityLights = vec3(1.0, 0.9, 0.5) * step(0.985, cityNoise) * landMask * 0.5;
-          cityLights *= (1.0 - dayNightFactor);
+          // City lights: NASA Black Marble (boosted so lights pop against the dark side)
+          vec3 cityLights = vec3(0.0);
+          if (hasNightMap) {
+            vec3 lights = texture2D(nightMap, vUv).rgb;
+            cityLights = pow(lights, vec3(1.4)) * vec3(1.6, 1.35, 1.0);
+          }
+          cityLights *= (1.0 - smoothstep(0.0, 0.6, dayNightFactor));
 
           // Twilight band
-          float twilightBand = smoothstep(0.0, 0.25, dayNightFactor) * (1.0 - smoothstep(0.25, 0.5, dayNightFactor));
-          vec3 twilightGlow = vec3(1.0, 0.5, 0.2) * twilightBand * 0.2;
+          float twilightBand = smoothstep(0.0, 0.35, dayNightFactor) * (1.0 - smoothstep(0.35, 0.8, dayNightFactor));
+          vec3 twilightGlow = vec3(1.0, 0.45, 0.2) * twilightBand * texColor.rgb * 0.6;
 
-          // Atmosphere rim on night side
-          float fresnel = pow(1.0 - max(dot(normalize(-vWorldPosition), normal), 0.0), 3.0);
-          vec3 atmosphereRim = vec3(0.2, 0.4, 1.0) * fresnel * 0.2 * (1.0 - dayNightFactor);
+          // Atmosphere rim on the limb
+          float fresnel = pow(1.0 - max(dot(viewDir, normal), 0.0), 3.0);
+          vec3 atmosphereRim = vec3(0.3, 0.55, 1.0) * fresnel * mix(0.12, 0.35, dayNightFactor);
 
           // Combine globe lighting
           vec3 globeColor = mix(nightColor, dayColor, dayNightFactor);
           globeColor += cityLights + twilightGlow + atmosphereRim;
           globeColor = globeColor / (globeColor + vec3(0.6));
 
-          // Smooth transition: globe lighting → flat clean texture
-          vec3 flatColor = texColor.rgb * 0.85;
-          flatColor = flatColor / (flatColor + vec3(0.6));
-
-          vec3 finalColor = mix(globeColor, flatColor, flatBlend);
-
-          gl_FragColor = vec4(finalColor, 1.0);
+          gl_FragColor = vec4(mix(globeColor, flatColor, flatBlend), 1.0);
         }
       `,
         side: THREE.DoubleSide,
@@ -230,8 +253,13 @@ export const PhysicalGlobe = () => {
 
   // Swap in higher-resolution tiers as they arrive, without rebuilding the material
   useEffect(() => {
-    shaderMaterial.uniforms.dayMap.value = dayTexture;
-  }, [shaderMaterial, dayTexture]);
+    const { uniforms } = shaderMaterial;
+    uniforms.dayMap.value = dayTexture;
+    uniforms.nightMap.value = nightTexture;
+    uniforms.hasNightMap.value = nightTexture !== null;
+    uniforms.elevationMap.value = elevationTexture;
+    uniforms.hasElevationMap.value = elevationTexture !== null;
+  }, [shaderMaterial, dayTexture, nightTexture, elevationTexture]);
 
   // <primitive> objects are not auto-disposed by R3F
   useEffect(() => () => shaderMaterial.dispose(), [shaderMaterial]);

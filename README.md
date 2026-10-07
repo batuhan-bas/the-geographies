@@ -32,7 +32,9 @@ Interactive 3D world map with morphable Globe/Flat projections built with Next.j
 - **Multiple Layers**: Toggle between Political, Physical, Topography, Choropleth, and Heatmap layers
 - **Topography Layer**: Hypsometric tint coloring with antialiased contour lines from elevation data
 - **Data Visualization**: Choropleth maps for country data and heatmaps with Gaussian kernel density
-- **Day/Night Cycle**: Realistic day/night lighting with city lights, twilight glow, and atmosphere effects
+- **Real Sun Position**: The terminator follows the actual subsolar point for the current UTC time (solar ephemeris), with optional time-lapse via `timeScale`
+- **Night Lights**: NASA Black Marble city lights on the night side of both the Physical and Political layers
+- **Atmosphere & Ocean**: Sun-aware atmospheric glow (blue by day, orange at the terminator), ocean sun glint with Fresnel sky reflection, and a starfield
 - **16K Textures, streamed**: NASA Blue Marble and Natural Earth imagery as GPU-compressed KTX2, loaded progressively (2K preview → 4K/8K device tier → 16K when zoomed in on desktop)
 - **Continent-based Coloring**: Warm color palette organized by continent, echoed in panel avatar and search results
 - **Glass Morphism UI**: Deep-blur panels with layered shadows, accent bars, and focus-ring animations
@@ -145,6 +147,7 @@ public/
 - Day map texture: [NASA Blue Marble](https://visibleearth.nasa.gov/) (16K)
 - Elevation data: [GEBCO](https://www.gebco.net/) via NASA (16K)
 - Hypsometric tint: [Natural Earth](https://www.naturalearthdata.com/) (16K)
+- Night lights: [NASA Black Marble 2016](https://earthobservatory.nasa.gov/features/NightLights) (13.5K)
 
 ## License
 
@@ -153,6 +156,7 @@ MIT
 ## Roadmap
 
 - [x] Day/night cycle animation
+- [x] Real-time sun position, Black Marble night lights, atmosphere glow, ocean glint
 - [x] Country search functionality
 - [x] Data visualization overlays (Choropleth & Heatmap)
 - [x] Topography layer with hypsometric tint and contour lines
