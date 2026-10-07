@@ -6,13 +6,17 @@ import { Text, Billboard } from "@react-three/drei";
 import * as THREE from "three";
 import type { CountryFeature } from "@/types/geo";
 import { geoToSphere, geoToFlat, GLOBE_RADIUS } from "@/lib/geo/coordinates";
+import { morphProgressRef } from "@/store/hooks";
 import { getFeatureCentroid } from "@/lib/geo/projections";
 
 interface CountryLabelsProps {
   countries: CountryFeature[];
-  morphProgress: number;
   minZoom?: number;
 }
+
+// Scratch vectors shared by all labels (useFrame callbacks run sequentially)
+const tmpCameraDir = new THREE.Vector3();
+const tmpLabelDir = new THREE.Vector3();
 
 interface LabelData {
   name: string;
@@ -53,11 +57,9 @@ function calculateLabelData(feature: CountryFeature): LabelData | null {
  */
 const CountryLabel = ({
   data,
-  morphProgress,
   zoomRef,
 }: {
   data: LabelData;
-  morphProgress: number;
   zoomRef: React.RefObject<{ zoom: number }>;
 }) => {
   const { camera } = useThree();
@@ -71,6 +73,8 @@ const CountryLabel = ({
     }
 
     const zoom = zoomRef.current?.zoom ?? 3.5;
+    // Read live so labels follow the morph animation instead of snapping at the end
+    const morphProgress = morphProgressRef.current;
 
     // Interpolate position
     const x = data.spherePos.x + (data.flatPos.x - data.spherePos.x) * morphProgress;
@@ -80,9 +84,9 @@ const CountryLabel = ({
 
     // Globe mode visibility check
     if (morphProgress < 0.5) {
-      const cameraDir = camera.position.clone().normalize();
-      const labelDir = billboardRef.current.position.clone().normalize();
-      const dot = cameraDir.dot(labelDir);
+      tmpCameraDir.copy(camera.position).normalize();
+      tmpLabelDir.copy(billboardRef.current.position).normalize();
+      const dot = tmpCameraDir.dot(tmpLabelDir);
 
       const visible = dot > 0.5;
       if (visible !== lastVisible.current) {
@@ -141,7 +145,7 @@ const CountryLabel = ({
 /**
  * All country labels with zoom-based visibility
  */
-export const CountryLabels = ({ countries, morphProgress }: CountryLabelsProps) => {
+export const CountryLabels = ({ countries }: CountryLabelsProps) => {
   const { camera } = useThree();
   const zoomRef = useRef({ zoom: camera.position.length() });
   const prevCount = useRef(0);
@@ -162,7 +166,7 @@ export const CountryLabels = ({ countries, morphProgress }: CountryLabelsProps) 
     const zoom = camera.position.length();
     zoomRef.current.zoom = zoom;
 
-    const isGlobeMode = morphProgress < 0.5;
+    const isGlobeMode = morphProgressRef.current < 0.5;
 
     // Determine how many labels to show based on zoom
     let numLabels: number;
@@ -212,7 +216,6 @@ export const CountryLabels = ({ countries, morphProgress }: CountryLabelsProps) 
         <CountryLabel
           key={data.iso && data.iso !== "-99" ? data.iso : `label-${index}`}
           data={data}
-          morphProgress={morphProgress}
           zoomRef={zoomRef}
         />
       ))}

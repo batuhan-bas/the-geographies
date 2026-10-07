@@ -6,14 +6,6 @@ import * as THREE from "three";
 import { morphProgressRef } from "@/store/hooks";
 
 // ==========================================
-// TopographyLayer Component Props
-// ==========================================
-
-interface TopographyLayerProps {
-  morphProgress: number;
-}
-
-// ==========================================
 // Constants - Must match coordinates.ts
 // ==========================================
 
@@ -30,7 +22,7 @@ const FLAT_Z_OFFSET = -0.005;
 // TopographyLayer Component
 // ==========================================
 
-export const TopographyLayer = ({ morphProgress }: TopographyLayerProps) => {
+export const TopographyLayer = () => {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
   // Load textures

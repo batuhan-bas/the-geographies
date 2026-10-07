@@ -1,18 +1,9 @@
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { useLoader, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { morphProgressRef, useDayNight } from "@/store/hooks";
-
-// ==========================================
-// PhysicalGlobe Component Props
-// ==========================================
-
-interface PhysicalGlobeProps {
-  morphProgress: number;
-  sunDirection?: THREE.Vector3;
-}
+import { morphProgressRef, sunDirectionRef, useDayNight } from "@/store/hooks";
 
 // ==========================================
 // Constants - Must match coordinates.ts
@@ -31,10 +22,7 @@ const FLAT_Z_OFFSET = -0.01; // Z offset in flat mode (behind political layer)
 // PhysicalGlobe Component
 // ==========================================
 
-export const PhysicalGlobe = ({
-  morphProgress,
-  sunDirection = new THREE.Vector3(1, 0.3, 0.5).normalize(),
-}: PhysicalGlobeProps) => {
+export const PhysicalGlobe = () => {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const { enableDayNight } = useDayNight();
@@ -122,7 +110,6 @@ export const PhysicalGlobe = ({
     if (materialRef.current) {
       const progress = morphProgressRef.current;
       materialRef.current.uniforms.morphProgress.value = progress;
-      materialRef.current.uniforms.sunDirection.value.copy(sunDirection);
       materialRef.current.uniforms.enableDayNight.value = enableDayNight && progress < 0.5;
     }
   });
@@ -135,7 +122,8 @@ export const PhysicalGlobe = ({
           morphProgress: { value: morphProgressRef.current },
           dayMap: { value: dayTexture },
           bumpMap: { value: bumpTexture },
-          sunDirection: { value: sunDirection.clone() },
+          // Shared reference: Globe mutates it in place, no per-frame copy needed
+          sunDirection: { value: sunDirectionRef.current },
           enableDayNight: { value: enableDayNight },
         },
         vertexShader: `
@@ -237,8 +225,13 @@ export const PhysicalGlobe = ({
       `,
         side: THREE.DoubleSide,
       }),
-    [dayTexture, bumpTexture, sunDirection, enableDayNight],
+    // enableDayNight is pushed via uniform in useFrame, so it is not a dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dayTexture, bumpTexture],
   );
+
+  // <primitive> objects are not auto-disposed by R3F
+  useEffect(() => () => shaderMaterial.dispose(), [shaderMaterial]);
 
   return (
     <mesh ref={meshRef} geometry={geometry} material={shaderMaterial}>

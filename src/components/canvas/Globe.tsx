@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useMemo, Suspense, useState } from "react";
+import { useRef, useMemo, Suspense } from "react";
 import { useFrame } from "@react-three/fiber";
-import * as THREE from "three";
+import type * as THREE from "three";
 import { CountryMesh } from "./CountryMesh";
 import { CountryBorders } from "./CountryBorders";
 import { CountryLabels } from "./CountryLabels";
@@ -10,6 +10,7 @@ import { PhysicalGlobe } from "./PhysicalGlobe";
 import { TopographyLayer } from "./TopographyLayer";
 import { HeatmapLayer } from "@/components/visualization";
 import { useMapStore } from "@/store/mapStore";
+import { morphProgressRef, sunDirectionRef } from "@/store/hooks";
 import type { CountryFeature } from "@/types/geo";
 
 // ==========================================
@@ -34,29 +35,23 @@ export const Globe = ({
   sunSpeed = 0.05, // Slow rotation for gentle day/night cycle
 }: GlobeProps) => {
   const groupRef = useRef<THREE.Group>(null);
-  const { activeLayers } = useMapStore();
+  const showPhysical = useMapStore((state) => state.activeLayers.has("physical"));
+  const showTopography = useMapStore((state) => state.activeLayers.has("topography"));
+  const showPolitical = useMapStore((state) => state.activeLayers.has("political"));
 
-  // Sun direction state for day/night effect
-  const [sunAngle, setSunAngle] = useState(0);
-  const sunDirection = useMemo(() => {
-    // Sun rotates around the Y axis (equator plane)
-    const x = Math.cos(sunAngle);
-    const z = Math.sin(sunAngle);
-    const y = 0.3; // Slight tilt for more interesting lighting
-    return new THREE.Vector3(x, y, z).normalize();
-  }, [sunAngle]);
-
-  // Animate sun position
+  // Sun angle lives in a ref: mutating the shared sun vector avoids re-rendering
+  // the whole scene graph every frame. Shader uniforms hold the same Vector3.
+  const sunAngleRef = useRef(0);
   useFrame((_, delta) => {
-    if (animateSun && morphProgress < 0.5) {
-      setSunAngle((prev) => prev + delta * sunSpeed);
+    if (!animateSun || morphProgressRef.current >= 0.5) {
+      return;
     }
+    sunAngleRef.current += delta * sunSpeed;
+    const angle = sunAngleRef.current;
+    // Sun rotates around the Y axis (equator plane), slight tilt for more interesting lighting
+    sunDirectionRef.current.set(Math.cos(angle), 0.3, Math.sin(angle)).normalize();
   });
 
-  const showPhysical = activeLayers.has("physical");
-  const showTopography = activeLayers.has("topography");
-
-  const showPolitical = activeLayers.has("political");
   const isGlobeMode = morphProgress < 0.5;
 
   // Filter visible countries based on active layers and mode
@@ -77,14 +72,14 @@ export const Globe = ({
       {/* Physical Earth texture (when physical layer active) */}
       {showPhysical ? (
         <Suspense fallback={null}>
-          <PhysicalGlobe morphProgress={morphProgress} sunDirection={sunDirection} />
+          <PhysicalGlobe />
         </Suspense>
       ) : null}
 
       {/* Topography layer (between physical and political) */}
       {showTopography ? (
         <Suspense fallback={null}>
-          <TopographyLayer morphProgress={morphProgress} />
+          <TopographyLayer />
         </Suspense>
       ) : null}
 
@@ -112,7 +107,6 @@ export const Globe = ({
           }
           feature={feature}
           index={index}
-          sunDirection={sunDirection}
         />
       ))}
 
@@ -127,9 +121,7 @@ export const Globe = ({
       ) : null}
 
       {/* Country labels (political layer, zoom-dependent) */}
-      {showPolitical ? (
-        <CountryLabels countries={visibleCountries} morphProgress={morphProgress} minZoom={2.5} />
-      ) : null}
+      {showPolitical ? <CountryLabels countries={visibleCountries} minZoom={2.5} /> : null}
 
       {/* Heatmap visualization layer */}
       <HeatmapLayer />
