@@ -5,15 +5,14 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { morphProgressRef, sunDirectionRef, useDayNight } from "@/store/hooks";
 import { useProgressiveTexture } from "@/lib/textures/useProgressiveTexture";
+import { buildGlobeGrid } from "@/lib/geo/globeGrid";
+import { createMorphUniforms, morphVertexGlsl, syncMorphUniforms } from "@/lib/geo/morphShader";
 
 // ==========================================
 // Constants - Must match coordinates.ts
 // ==========================================
 
-const GLOBE_RADIUS = 1.0;
-const FLAT_SCALE = 2.0;
 const SEGMENTS = 128;
-const DEG_TO_RAD = Math.PI / 180;
 
 // Physical globe renders slightly inside/behind political layer to avoid z-fighting
 const SPHERE_OFFSET = 0.998; // Sphere radius multiplier (slightly smaller)
@@ -42,82 +41,15 @@ export const PhysicalGlobe = () => {
     srgb: false,
   });
 
-  // Create morphable geometry with sphere and flat positions
-  // Uses same coordinate system as coordinates.ts for alignment with political layer
-  const geometry = useMemo(() => {
-    const geo = new THREE.BufferGeometry();
-
-    const widthSegments = SEGMENTS;
-    const heightSegments = SEGMENTS / 2;
-
-    const vertices: number[] = [];
-    const spherePositions: number[] = [];
-    const flatPositions: number[] = [];
-    const uvs: number[] = [];
-    const indices: number[] = [];
-
-    for (let y = 0; y <= heightSegments; y++) {
-      // latitude: 90 (north pole) to -90 (south pole)
-      const latitude = 90 - (y / heightSegments) * 180;
-
-      for (let x = 0; x <= widthSegments; x++) {
-        // longitude: -180 to 180
-        const longitude = (x / widthSegments) * 360 - 180;
-
-        // Sphere position - matches geoToSphere() in coordinates.ts
-        const phi = (90 - latitude) * DEG_TO_RAD;
-        const theta = (longitude + 180) * DEG_TO_RAD;
-
-        // Apply offset to render inside/behind political layer
-        const radius = GLOBE_RADIUS * SPHERE_OFFSET;
-        const sphereX = -radius * Math.sin(phi) * Math.cos(theta);
-        const sphereY = radius * Math.cos(phi);
-        const sphereZ = radius * Math.sin(phi) * Math.sin(theta);
-
-        spherePositions.push(sphereX, sphereY, sphereZ);
-
-        // Flat position - matches geoToFlat() in coordinates.ts
-        const flatX = (longitude / 180) * FLAT_SCALE;
-        const flatY = (latitude / 90) * FLAT_SCALE * 0.5;
-        const flatZ = FLAT_Z_OFFSET; // Behind political layer
-
-        flatPositions.push(flatX, flatY, flatZ);
-        vertices.push(sphereX, sphereY, sphereZ);
-
-        // UV for texture mapping
-        const u = (longitude + 180) / 360;
-        const v = (90 - latitude) / 180;
-        uvs.push(u, 1 - v);
-      }
-    }
-
-    for (let y = 0; y < heightSegments; y++) {
-      for (let x = 0; x < widthSegments; x++) {
-        const a = y * (widthSegments + 1) + x;
-        const b = a + 1;
-        const c = a + (widthSegments + 1);
-        const d = c + 1;
-
-        indices.push(a, c, b);
-        indices.push(b, c, d);
-      }
-    }
-
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-    geo.setAttribute("spherePosition", new THREE.Float32BufferAttribute(spherePositions, 3));
-    geo.setAttribute("flatPosition", new THREE.Float32BufferAttribute(flatPositions, 3));
-    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-    geo.setIndex(indices);
-    geo.computeVertexNormals();
-
-    return geo;
-  }, []);
+  // Morphable lat/lon grid (flat position is projected in the vertex shader)
+  const geometry = useMemo(() => buildGlobeGrid(SEGMENTS, SPHERE_OFFSET), []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
   // Update uniforms every frame
   useFrame(() => {
     if (materialRef.current) {
       const progress = morphProgressRef.current;
-      materialRef.current.uniforms.morphProgress.value = progress;
+      syncMorphUniforms(materialRef.current.uniforms);
       materialRef.current.uniforms.enableDayNight.value = enableDayNight && progress < 0.5;
     }
   });
@@ -127,7 +59,7 @@ export const PhysicalGlobe = () => {
     () =>
       new THREE.ShaderMaterial({
         uniforms: {
-          morphProgress: { value: morphProgressRef.current },
+          ...createMorphUniforms(FLAT_Z_OFFSET),
           dayMap: { value: null },
           nightMap: { value: null },
           elevationMap: { value: null },
@@ -138,10 +70,7 @@ export const PhysicalGlobe = () => {
           enableDayNight: { value: enableDayNight },
         },
         vertexShader: `
-        attribute vec3 spherePosition;
-        attribute vec3 flatPosition;
-
-        uniform float morphProgress;
+        ${morphVertexGlsl}
 
         varying vec2 vUv;
         varying vec3 vNormal;
@@ -149,15 +78,9 @@ export const PhysicalGlobe = () => {
 
         void main() {
           vUv = uv;
-
-          vec3 morphedPosition = mix(spherePosition, flatPosition, morphProgress);
-
-          vec3 sphereNormal = normalize(spherePosition);
-          vec3 flatNormal = vec3(0.0, 0.0, 1.0);
-          vNormal = normalize(mix(sphereNormal, flatNormal, morphProgress));
-
+          vec3 morphedPosition = morphPosition();
+          vNormal = morphNormal();
           vWorldPosition = (modelMatrix * vec4(morphedPosition, 1.0)).xyz;
-
           gl_Position = projectionMatrix * modelViewMatrix * vec4(morphedPosition, 1.0);
         }
       `,

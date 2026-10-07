@@ -9,6 +9,15 @@ import { Globe } from "./Globe";
 import { useMapStore } from "@/store/mapStore";
 import { useMorphAnimation } from "@/store/hooks";
 import { geoToSphere, GLOBE_RADIUS } from "@/lib/geo/coordinates";
+import { projectBlended, type ProjectionType } from "@/lib/geo/projection";
+
+/** Flat-mode camera distance per projection (Mercator is ~2x taller) */
+const FLAT_CAMERA_DISTANCE: Record<ProjectionType, number> = {
+  naturalEarth: 4,
+  robinson: 4,
+  equirectangular: 4,
+  mercator: 5.6,
+};
 import type { CountryFeature, CountryGeometryData } from "@/types/geo";
 
 // ==========================================
@@ -20,6 +29,7 @@ const CameraController = () => {
   const controlsRef = useRef<any>(null);
   const selectedCountry = useMapStore((state) => state.selectedCountry);
   const viewMode = useMapStore((state) => state.viewMode);
+  const projection = useMapStore((state) => state.projection);
   const { morphProgress } = useMorphAnimation();
 
   // Animate camera to focus on selected country
@@ -45,11 +55,8 @@ const CameraController = () => {
       // Look at the center of the globe
       targetLookAt = new THREE.Vector3(0, 0, 0);
     } else {
-      // Flat view - zoom closer to the country
-      // Scale: longitude -180 to 180 maps to x -2 to 2
-      // Scale: latitude -90 to 90 maps to y -1 to 1
-      const x = (centroid.longitude / 180) * 2;
-      const y = centroid.latitude / 90;
+      // Flat view - zoom closer to the country in the target projection
+      const [x, y] = projectBlended(centroid.longitude, centroid.latitude, [0, 0]);
 
       // Zoom in close - z=1.5 for nice detail view
       targetPosition = new THREE.Vector3(x, y, 1.5);
@@ -86,11 +93,11 @@ const CameraController = () => {
     }
 
     if (viewMode === "flat") {
-      // Flat mode: orthographic-like view from front
+      // Flat mode: orthographic-like view from front, framed for the projection
       gsap.to(camera.position, {
         x: 0,
         y: 0,
-        z: 4,
+        z: FLAT_CAMERA_DISTANCE[projection],
         duration: 1.5,
         ease: "power2.inOut",
       });
@@ -118,7 +125,7 @@ const CameraController = () => {
         ease: "power2.inOut",
       });
     }
-  }, [viewMode, camera]);
+  }, [viewMode, projection, camera]);
 
   // Globe mode: only rotation, fixed distance
   // Flat mode: pan and zoom enabled

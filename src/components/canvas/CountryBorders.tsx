@@ -8,7 +8,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { CountryFeature, CountryGeometryData } from "@/types/geo";
 import { buildCountryBorderGeometry } from "@/lib/geo/mergeCountries";
-import { morphProgressRef } from "@/store/hooks";
+import { createMorphUniforms, morphVertexGlsl, syncMorphUniforms } from "@/lib/geo/morphShader";
 
 // Borders sit just above the country fill to avoid z-fighting
 const SPHERE_OFFSET = 1.001;
@@ -24,19 +24,17 @@ interface CountryBordersProps {
 }
 
 const vertexShader = /* glsl */ `
-  attribute vec3 spherePosition;
-  attribute vec3 flatPosition;
   attribute float countryIndex;
 
-  uniform float morphProgress;
+  ${morphVertexGlsl}
+
   uniform float hiddenCountry;
 
   varying float vHidden;
 
   void main() {
     vHidden = abs(countryIndex - hiddenCountry) < 0.5 ? 1.0 : 0.0;
-    vec3 morphedPosition = mix(spherePosition, flatPosition, morphProgress);
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(morphedPosition, 1.0);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(morphPosition(), 1.0);
   }
 `;
 
@@ -66,7 +64,7 @@ export const CountryBorders = ({
   opacity = 0.15,
 }: CountryBordersProps) => {
   const geometry = useMemo(
-    () => buildCountryBorderGeometry(geometryData, SPHERE_OFFSET, FLAT_Z_OFFSET),
+    () => buildCountryBorderGeometry(geometryData, SPHERE_OFFSET),
     [geometryData],
   );
   const antarcticaIndex = useMemo(
@@ -79,7 +77,7 @@ export const CountryBorders = ({
     () =>
       new THREE.ShaderMaterial({
         uniforms: {
-          morphProgress: { value: morphProgressRef.current },
+          ...createMorphUniforms(FLAT_Z_OFFSET),
           hiddenCountry: { value: -1 },
           color: { value: new THREE.Color() },
           opacity: { value: 1 },
@@ -100,7 +98,7 @@ export const CountryBorders = ({
   }, [material, color, opacity, hideAntarctica, antarcticaIndex]);
 
   useFrame(() => {
-    material.uniforms.morphProgress.value = morphProgressRef.current;
+    syncMorphUniforms(material.uniforms);
   });
 
   return (
