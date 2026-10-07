@@ -1,42 +1,44 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
-import { Text, Billboard } from "@react-three/drei";
 import * as THREE from "three";
+import { BatchedText, Text } from "troika-three-text";
 import type { CountryFeature } from "@/types/geo";
 import { geoToSphere, geoToFlat, GLOBE_RADIUS } from "@/lib/geo/coordinates";
-import { morphProgressRef } from "@/store/hooks";
 import { getFeatureCentroid } from "@/lib/geo/projections";
+import { morphProgressRef } from "@/store/hooks";
+
+// ==========================================
+// Constants
+// ==========================================
+
+const FONT_SIZE = 0.022;
+const OUTLINE_WIDTH = 0.0018;
+const MAX_WIDTH = 0.3;
+/** Extra screen-space gap between labels, in CSS pixels */
+const COLLISION_PADDING_PX = 3;
+/** Fade speed (per second) for labels entering/leaving */
+const FADE_SPEED = 8;
 
 interface CountryLabelsProps {
   countries: CountryFeature[];
-  minZoom?: number;
+  /** Hide Antarctica (flat mode) without rebuilding the labels */
+  hideAntarctica?: boolean;
 }
-
-// Scratch vectors shared by all labels (useFrame callbacks run sequentially)
-const tmpCameraDir = new THREE.Vector3();
-const tmpLabelDir = new THREE.Vector3();
 
 interface LabelData {
   name: string;
-  iso: string;
   spherePos: THREE.Vector3;
   flatPos: THREE.Vector3;
   population: number;
+  isAntarctica: boolean;
 }
 
 function calculateLabelData(feature: CountryFeature): LabelData | null {
   const centroid = getFeatureCentroid(feature);
-  if (!centroid) {
-    return null;
-  }
-
   const name = feature.properties?.name || "";
-  const iso = feature.properties?.iso_a3 || "";
-  const population = feature.properties?.pop_est || 0;
-
-  if (!name) {
+  if (!centroid || !name) {
     return null;
   }
 
@@ -45,113 +47,50 @@ function calculateLabelData(feature: CountryFeature): LabelData | null {
 
   return {
     name,
-    iso,
     spherePos: new THREE.Vector3(sphere.x, sphere.y, sphere.z),
     flatPos: new THREE.Vector3(flat.x, flat.y, flat.z + 0.02),
-    population,
+    population: feature.properties?.pop_est || 0,
+    isAntarctica: feature.properties?.continent === "Antarctica",
   };
 }
 
-/**
- * Single country label — uses ref-based visibility to avoid re-renders
- */
-const CountryLabel = ({
-  data,
-  zoomRef,
-}: {
-  data: LabelData;
-  zoomRef: React.RefObject<{ zoom: number }>;
-}) => {
-  const { camera } = useThree();
-  const textRef = useRef<THREE.Object3D>(null);
-  const billboardRef = useRef<THREE.Group>(null);
-  const lastVisible = useRef(true);
-
-  useFrame(() => {
-    if (!billboardRef.current) {
-      return;
+/** Greedy placement: true if the box was free and has been added to `placed` */
+function tryPlace(
+  placed: number[],
+  box: { x0: number; y0: number; x1: number; y1: number },
+): boolean {
+  const { x0, y0, x1, y1 } = box;
+  for (let j = 0; j < placed.length; j += 4) {
+    if (x0 < placed[j + 2] && x1 > placed[j] && y0 < placed[j + 3] && y1 > placed[j + 1]) {
+      return false;
     }
+  }
+  placed.push(x0, y0, x1, y1);
+  return true;
+}
 
-    const zoom = zoomRef.current?.zoom ?? 3.5;
-    // Read live so labels follow the morph animation instead of snapping at the end
-    const morphProgress = morphProgressRef.current;
+// Scratch objects (useFrame callbacks run sequentially)
+const tmpPosition = new THREE.Vector3();
+const tmpProjected = new THREE.Vector3();
+const tmpCameraDir = new THREE.Vector3();
+const tmpLabelDir = new THREE.Vector3();
+const tmpBox = { x0: 0, y0: 0, x1: 0, y1: 0 };
 
-    // Interpolate position
-    const x = data.spherePos.x + (data.flatPos.x - data.spherePos.x) * morphProgress;
-    const y = data.spherePos.y + (data.flatPos.y - data.spherePos.y) * morphProgress;
-    const z = data.spherePos.z + (data.flatPos.z - data.spherePos.z) * morphProgress;
-    billboardRef.current.position.set(x, y, z);
-
-    // Globe mode visibility check
-    if (morphProgress < 0.5) {
-      tmpCameraDir.copy(camera.position).normalize();
-      tmpLabelDir.copy(billboardRef.current.position).normalize();
-      const dot = tmpCameraDir.dot(tmpLabelDir);
-
-      const visible = dot > 0.5;
-      if (visible !== lastVisible.current) {
-        billboardRef.current.visible = visible;
-        lastVisible.current = visible;
-      }
-
-      // Edge fade
-      if (visible && textRef.current) {
-        const edgeOpacity = Math.min(1, Math.max(0, (dot - 0.5) / 0.25));
-        const mat = (textRef.current as unknown as { material: THREE.Material }).material;
-        if (mat) {
-          mat.opacity = edgeOpacity;
-        }
-      }
-    } else {
-      if (!lastVisible.current) {
-        billboardRef.current.visible = true;
-        lastVisible.current = true;
-      }
-      if (textRef.current) {
-        const mat = (textRef.current as unknown as { material: THREE.Material }).material;
-        if (mat) {
-          mat.opacity = 1;
-        }
-      }
-    }
-
-    // Scale font to maintain roughly consistent screen size across zoom levels.
-    // Camera approaches globe surface (radius ~1), so effective distance = zoom - 1.
-    // Clamp to avoid extreme scaling at very close or very far zoom.
-    const effectiveDistance = Math.max(0.3, zoom - 1.0);
-    const scale = effectiveDistance / 2.5;
-    billboardRef.current.scale.setScalar(Math.max(0.3, Math.min(2.0, scale)));
-  });
-
-  return (
-    <Billboard ref={billboardRef} follow lockX={false} lockY={false} lockZ={false}>
-      <Text
-        ref={textRef as React.RefObject<THREE.Object3D>}
-        fontSize={0.022}
-        color="#ffffff"
-        anchorX="center"
-        anchorY="middle"
-        outlineWidth={0.0018}
-        outlineColor="#000000"
-        maxWidth={0.3}
-        {...({ depthTest: false, renderOrder: 100 } as Record<string, unknown>)}
-      >
-        {data.name}
-      </Text>
-    </Billboard>
-  );
-};
+// ==========================================
+// CountryLabels Component
+// ==========================================
 
 /**
- * All country labels with zoom-based visibility
+ * All country labels rendered as one troika BatchedText (single draw call).
+ *
+ * Every frame each label is billboarded, faded out on the far side of the
+ * globe, and run through a greedy screen-space collision pass in population
+ * order, so larger countries win and labels never overlap.
  */
-export const CountryLabels = ({ countries }: CountryLabelsProps) => {
-  const { camera } = useThree();
-  const zoomRef = useRef({ zoom: camera.position.length() });
-  const prevCount = useRef(0);
-  const countRef = useRef(0);
+export const CountryLabels = ({ countries, hideAntarctica = false }: CountryLabelsProps) => {
+  const { camera, size } = useThree();
 
-  // Pre-calculate all label data sorted by population
+  // Most populous first: they get collision priority
   const labelsData = useMemo(
     () =>
       countries
@@ -161,66 +100,107 @@ export const CountryLabels = ({ countries }: CountryLabelsProps) => {
     [countries],
   );
 
-  // Update zoom + label count via ref (no re-render)
-  useFrame(() => {
-    const zoom = camera.position.length();
-    zoomRef.current.zoom = zoom;
+  const batch = useMemo(() => {
+    const batched = new BatchedText();
+    // Labels draw on top of everything; far-side labels are faded out manually
+    batched.material.depthTest = false;
+    batched.material.depthWrite = false;
+    batched.renderOrder = 100;
+    batched.frustumCulled = false;
+    return batched;
+  }, []);
+  useEffect(() => () => batch.dispose(), [batch]);
 
-    const isGlobeMode = morphProgressRef.current < 0.5;
-
-    // Determine how many labels to show based on zoom
-    let numLabels: number;
-    if (isGlobeMode) {
-      if (zoom > 5.0) {
-        numLabels = 20;
-      } else if (zoom > 4.0) {
-        numLabels = 50;
-      } else {
-        numLabels = labelsData.length;
+  const labels = useMemo(() => {
+    const members = labelsData.map((data) => {
+      const text = new Text();
+      text.text = data.name;
+      text.fontSize = FONT_SIZE;
+      text.color = 0xffffff;
+      text.anchorX = "center";
+      text.anchorY = "middle";
+      text.textAlign = "center";
+      text.maxWidth = MAX_WIDTH;
+      text.outlineWidth = OUTLINE_WIDTH;
+      text.outlineColor = 0x000000;
+      text.fillOpacity = 0;
+      text.outlineOpacity = 0;
+      batch.add(text);
+      return text;
+    });
+    return { members, opacity: new Float32Array(members.length) };
+  }, [labelsData, batch]);
+  useEffect(
+    () => () => {
+      for (const text of labels.members) {
+        batch.remove(text);
+        text.dispose();
       }
-    } else {
-      if (zoom > 4.5) {
-        numLabels = 20;
-      } else if (zoom > 3.5) {
-        numLabels = 60;
-      } else {
-        numLabels = labelsData.length;
-      }
-    }
-
-    countRef.current = Math.min(numLabels, labelsData.length);
-  });
-
-  // We need to trigger a re-render when label count changes meaningfully
-  // Use a state that only updates when the count tier changes
-  const [countTier, setCountTier] = useState(0);
-
-  useFrame(() => {
-    const newCount = countRef.current;
-    if (newCount !== prevCount.current) {
-      prevCount.current = newCount;
-      // Map to tiers to avoid too many re-renders
-      const tier = newCount <= 20 ? 0 : newCount <= 50 ? 1 : newCount <= 60 ? 2 : 3;
-      setCountTier(tier);
-    }
-  });
-
-  const visibleLabels = useMemo(() => {
-    const counts = [20, 50, 60, labelsData.length];
-    return labelsData.slice(0, counts[countTier] ?? labelsData.length);
-  }, [labelsData, countTier]);
-
-  return (
-    <group renderOrder={100}>
-      {visibleLabels.map((data, index) => (
-        <CountryLabel
-          key={data.iso && data.iso !== "-99" ? data.iso : `label-${index}`}
-          data={data}
-          zoomRef={zoomRef}
-        />
-      ))}
-    </group>
+    },
+    [labels, batch],
   );
+
+  useFrame((_, delta) => {
+    const morphProgress = morphProgressRef.current;
+    const isGlobeMode = morphProgress < 0.5;
+    const zoom = camera.position.length();
+
+    // Keep roughly constant screen size: camera approaches the surface (radius ~1)
+    const scale = Math.max(0.3, Math.min(2.0, Math.max(0.3, zoom - 1.0) / 2.5));
+
+    const fov = (camera as THREE.PerspectiveCamera).fov ?? 45;
+    const viewHeightFactor = size.height / (2 * Math.tan((fov * Math.PI) / 360));
+    const fade = Math.min(1, delta * FADE_SPEED);
+    tmpCameraDir.copy(camera.position).normalize();
+
+    // Accepted screen boxes as flat [x0, y0, x1, y1, ...]
+    const placed: number[] = [];
+
+    labels.members.forEach((text, i) => {
+      const data = labelsData[i];
+      tmpPosition.lerpVectors(data.spherePos, data.flatPos, morphProgress);
+      text.position.copy(tmpPosition);
+      text.quaternion.copy(camera.quaternion);
+      text.scale.setScalar(scale);
+
+      // Globe mode: fade labels approaching the horizon, hide the far side
+      let target = hideAntarctica && data.isAntarctica ? 0 : 1;
+      if (target > 0 && isGlobeMode) {
+        const dot = tmpCameraDir.dot(tmpLabelDir.copy(tmpPosition).normalize());
+        target = Math.min(1, Math.max(0, (dot - 0.5) / 0.25));
+      }
+
+      const bounds = text.textRenderInfo?.blockBounds;
+      if (target > 0 && bounds) {
+        tmpProjected.copy(tmpPosition).project(camera);
+        if (tmpProjected.z > 1) {
+          target = 0;
+        } else {
+          const cx = ((tmpProjected.x + 1) / 2) * size.width;
+          const cy = ((1 - tmpProjected.y) / 2) * size.height;
+          const pxPerUnit = (viewHeightFactor / camera.position.distanceTo(tmpPosition)) * scale;
+          const halfW = ((bounds[2] - bounds[0]) / 2) * pxPerUnit + COLLISION_PADDING_PX;
+          const halfH = ((bounds[3] - bounds[1]) / 2) * pxPerUnit + COLLISION_PADDING_PX;
+          tmpBox.x0 = cx - halfW;
+          tmpBox.y0 = cy - halfH;
+          tmpBox.x1 = cx + halfW;
+          tmpBox.y1 = cy + halfH;
+          if (!tryPlace(placed, tmpBox)) {
+            target = 0;
+          }
+        }
+      } else {
+        target = 0;
+      }
+
+      const opacity = labels.opacity[i] + (target - labels.opacity[i]) * fade;
+      labels.opacity[i] = opacity;
+      text.fillOpacity = opacity;
+      text.outlineOpacity = opacity;
+    });
+  });
+
+  return <primitive object={batch} />;
 };
 
 export default CountryLabels;

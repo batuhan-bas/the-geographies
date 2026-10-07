@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, Suspense } from "react";
+import { useRef, Suspense } from "react";
 import { useFrame } from "@react-three/fiber";
 import type * as THREE from "three";
 import { CountriesLayer } from "./CountriesLayer";
@@ -54,19 +54,8 @@ export const Globe = ({
 
   const isGlobeMode = morphProgress < 0.5;
 
-  // Filter visible countries based on active layers and mode
-  // Hide Antarctica in flat mode due to projection distortion
-  const visibleCountries = useMemo(() => {
-    if (!showPolitical) {
-      return [];
-    }
-    if (isGlobeMode) {
-      return countries;
-    }
-    // In flat mode, hide Antarctica
-    return countries.filter((c) => c.properties?.continent !== "Antarctica");
-  }, [countries, showPolitical, isGlobeMode]);
-
+  // Antarctica is hidden in flat mode (projection distortion) via per-layer
+  // flags, so switching modes never rebuilds geometry or labels
   return (
     <group ref={groupRef}>
       {/* Physical Earth texture (when physical layer active) */}
@@ -113,7 +102,7 @@ export const Globe = ({
       ) : null}
 
       {/* Country labels (political layer, zoom-dependent) */}
-      {showPolitical ? <CountryLabels countries={visibleCountries} minZoom={2.5} /> : null}
+      {showPolitical ? <CountryLabels countries={countries} hideAntarctica={!isGlobeMode} /> : null}
 
       {/* Heatmap visualization layer */}
       <HeatmapLayer />
