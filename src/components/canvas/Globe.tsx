@@ -105,8 +105,8 @@ export const Globe = ({
       {/* Country borders (political layer) */}
       {showPolitical ? (
         <CountryBorders
-          countries={visibleCountries}
-          morphProgress={morphProgress}
+          countries={countries}
+          hideAntarctica={!isGlobeMode}
           color="#ffffff"
           opacity={0.2}
         />
