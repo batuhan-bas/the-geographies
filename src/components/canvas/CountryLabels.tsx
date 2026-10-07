@@ -5,7 +5,8 @@ import { useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { BatchedText, Text } from "troika-three-text";
 import type { CountryFeature } from "@/types/geo";
-import { geoToSphere, geoToFlat, GLOBE_RADIUS } from "@/lib/geo/coordinates";
+import { geoToSphere, GLOBE_RADIUS } from "@/lib/geo/coordinates";
+import { projectBlended } from "@/lib/geo/projection";
 import { morphProgressRef } from "@/store/hooks";
 
 // ==========================================
@@ -29,7 +30,8 @@ interface CountryLabelsProps {
 interface LabelData {
   name: string;
   spherePos: THREE.Vector3;
-  flatPos: THREE.Vector3;
+  longitude: number;
+  latitude: number;
   population: number;
   isAntarctica: boolean;
 }
@@ -42,12 +44,12 @@ function calculateLabelData(feature: CountryFeature): LabelData | null {
   }
 
   const sphere = geoToSphere(centroid.longitude, centroid.latitude, GLOBE_RADIUS * 1.02);
-  const flat = geoToFlat(centroid.longitude, centroid.latitude);
 
   return {
     name,
     spherePos: new THREE.Vector3(sphere.x, sphere.y, sphere.z),
-    flatPos: new THREE.Vector3(flat.x, flat.y, flat.z + 0.02),
+    longitude: centroid.longitude,
+    latitude: centroid.latitude,
     population: feature.properties?.pop_est || 0,
     isAntarctica: feature.properties?.continent === "Antarctica",
   };
@@ -70,6 +72,10 @@ function tryPlace(
 
 // Scratch objects (useFrame callbacks run sequentially)
 const tmpPosition = new THREE.Vector3();
+const tmpFlatPos = new THREE.Vector3();
+const tmpFlat: [number, number] = [0, 0];
+/** Labels float just above the flat map */
+const LABEL_FLAT_Z = 0.02;
 const tmpProjected = new THREE.Vector3();
 const tmpCameraDir = new THREE.Vector3();
 const tmpLabelDir = new THREE.Vector3();
@@ -164,7 +170,10 @@ export const CountryLabels = ({ countries, hideAntarctica = false }: CountryLabe
 
     labels.members.forEach((text, i) => {
       const data = labelsData[i];
-      tmpPosition.lerpVectors(data.spherePos, data.flatPos, morphProgress);
+      // Flat position follows the (possibly animating) projection
+      projectBlended(data.longitude, data.latitude, tmpFlat);
+      tmpFlatPos.set(tmpFlat[0], tmpFlat[1], LABEL_FLAT_Z);
+      tmpPosition.lerpVectors(data.spherePos, tmpFlatPos, morphProgress);
       text.position.copy(tmpPosition);
       text.quaternion.copy(camera.quaternion);
       text.scale.setScalar(scale);

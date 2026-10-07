@@ -24,6 +24,7 @@ const initialCameraState: CameraState = {
 
 const initialState: MapState = {
   viewMode: "globe",
+  projection: "naturalEarth",
   activeLayers: new Set<MapLayer>(["political"]),
   lodLevel: "medium",
   enableDayNight: true,
@@ -56,6 +57,10 @@ export const useMapStore = create<MapStore>()(
         viewMode: mode,
         morphProgress: mode === "globe" ? 0 : 1,
       });
+    },
+
+    setProjection: (projection) => {
+      set({ projection });
     },
 
     toggleViewMode: () => {

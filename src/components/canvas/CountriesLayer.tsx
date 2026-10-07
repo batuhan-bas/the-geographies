@@ -12,6 +12,7 @@ import { morphProgressRef, sunDirectionRef } from "@/store/hooks";
 import { interpolateColor } from "@/lib/visualization/colorScales";
 import { getCountryColor } from "@/lib/geo/countryColors";
 import { buildCountryFillGeometry } from "@/lib/geo/mergeCountries";
+import { createMorphUniforms, morphVertexGlsl, syncMorphUniforms } from "@/lib/geo/morphShader";
 import { useProgressiveTexture } from "@/lib/textures/useProgressiveTexture";
 import type { CountryFeature, CountryGeometryData } from "@/types/geo";
 
@@ -28,13 +29,11 @@ const NIGHT_TIERS_K = [2, 4, 8];
 // Shaders
 // ==========================================
 
-// Shared vertex stage: GPU morph between sphere and flat positions
+// Shared vertex stage: GPU morph between the sphere and the active flat projection
 const morphVertexShader = /* glsl */ `
-  attribute vec3 spherePosition;
-  attribute vec3 flatPosition;
   attribute float countryIndex;
 
-  uniform float morphProgress;
+  ${morphVertexGlsl}
 
   varying vec3 vNormal;
   varying vec3 vViewPosition;
@@ -43,15 +42,11 @@ const morphVertexShader = /* glsl */ `
   varying vec2 vGeoUv;
 
   void main() {
-    // Equirectangular UV from the flat position (x: [-2, 2], y: [-1, 1])
-    vGeoUv = vec2(flatPosition.x / 4.0 + 0.5, flatPosition.y / 2.0 + 0.5);
+    // Equirectangular texture UV (night lights) from lon/lat
+    vGeoUv = vec2((lonLat.x + 180.0) / 360.0, (lonLat.y + 90.0) / 180.0);
 
-    vec3 morphedPosition = mix(spherePosition, flatPosition, morphProgress);
-
-    // Sphere normal points outward from center, flat normal points towards +Z
-    vec3 sphereNormal = normalize(spherePosition);
-    vec3 flatNormal = vec3(0.0, 0.0, 1.0);
-    vNormal = normalMatrix * normalize(mix(sphereNormal, flatNormal, morphProgress));
+    vec3 morphedPosition = morphPosition();
+    vNormal = normalMatrix * morphNormal();
 
     vec4 mvPosition = modelViewMatrix * vec4(morphedPosition, 1.0);
     vViewPosition = -mvPosition.xyz;
@@ -298,7 +293,7 @@ export const CountriesLayer = ({
     () =>
       new THREE.ShaderMaterial({
         uniforms: {
-          morphProgress: { value: morphProgressRef.current },
+          ...createMorphUniforms(0),
           sunDirection: { value: sunDirectionRef.current },
           enableDayNight: { value: true },
           hoveredIndex: { value: NO_COUNTRY },
@@ -320,7 +315,7 @@ export const CountriesLayer = ({
   const pick = useMemo(() => {
     const pickMaterial = new THREE.ShaderMaterial({
       uniforms: {
-        morphProgress: { value: morphProgressRef.current },
+        ...createMorphUniforms(0),
         styleMap: { value: styleTexture },
         countryCount: { value: countryCount },
       },
@@ -358,7 +353,7 @@ export const CountriesLayer = ({
       return NO_COUNTRY;
     }
     const cam = camera as THREE.PerspectiveCamera;
-    pick.material.uniforms.morphProgress.value = progress;
+    syncMorphUniforms(pick.material.uniforms);
 
     gl.getClearColor(clearColorRef.current);
     const clearAlpha = gl.getClearAlpha();
@@ -470,7 +465,7 @@ export const CountriesLayer = ({
   // ---------- Per-frame uniforms ----------
   useFrame(() => {
     const progress = morphProgressRef.current;
-    material.uniforms.morphProgress.value = progress;
+    syncMorphUniforms(material.uniforms);
     material.uniforms.enableDayNight.value = enableDayNight && progress < 0.5;
 
     const pointer = pendingPointerRef.current;

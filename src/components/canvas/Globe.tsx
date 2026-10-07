@@ -4,6 +4,7 @@ import { useMemo, useRef, Suspense } from "react";
 import { useFrame } from "@react-three/fiber";
 import type * as THREE from "three";
 import { CountriesLayer } from "./CountriesLayer";
+import { OceanLayer } from "./OceanLayer";
 import { CountryBorders } from "./CountryBorders";
 import { CountryLabels } from "./CountryLabels";
 import { PhysicalGlobe } from "./PhysicalGlobe";
@@ -13,6 +14,7 @@ import { Atmosphere } from "@/components/effects";
 import { useMapStore } from "@/store/mapStore";
 import { sunDirectionRef } from "@/store/hooks";
 import { setSunDirectionFromDate } from "@/lib/geo/sun";
+import { hidesAntarctica } from "@/lib/geo/projection";
 import type { CountryFeature, CountryGeometryData } from "@/types/geo";
 
 // ==========================================
@@ -50,6 +52,9 @@ export const Globe = ({ countries, geometryData, morphProgress, timeScale = 1 }:
   });
 
   const isGlobeMode = morphProgress < 0.5;
+  const projection = useMapStore((state) => state.projection);
+  // Equal-area-ish projections show Antarctica fine; Mercator/equirect distort it
+  const hideAntarctica = !isGlobeMode && hidesAntarctica(projection);
 
   // Antarctica is hidden in flat mode (projection distortion) via per-layer
   // flags, so switching modes never rebuilds geometry or labels
@@ -69,26 +74,15 @@ export const Globe = ({ countries, geometryData, morphProgress, timeScale = 1 }:
         </Suspense>
       ) : null}
 
-      {/* Ocean sphere (globe mode, only when no physical layer) */}
-      {!showPhysical && (
-        <mesh visible={morphProgress < 0.5}>
-          <sphereGeometry args={[0.995, 64, 64]} />
-          <meshStandardMaterial color="#1a4a7a" roughness={0.6} metalness={0.2} />
-        </mesh>
-      )}
-
-      {/* Ocean plane (flat mode) - sized to exclude Antarctica region */}
-      <mesh visible={morphProgress > 0.5} position={[0, 0.1, -0.01]}>
-        <planeGeometry args={[4.5, 2]} />
-        <meshStandardMaterial color="#1a4a7a" roughness={0.6} metalness={0.2} />
-      </mesh>
+      {/* Ocean backdrop (follows the active projection in flat mode) */}
+      {!showPhysical ? <OceanLayer /> : null}
 
       {/* Country meshes (political layer) - single merged mesh, one draw call */}
       {showPolitical ? (
         <CountriesLayer
           countries={countries}
           geometryData={geometryData}
-          hideAntarctica={!isGlobeMode}
+          hideAntarctica={hideAntarctica}
         />
       ) : null}
 
@@ -97,14 +91,16 @@ export const Globe = ({ countries, geometryData, morphProgress, timeScale = 1 }:
         <CountryBorders
           countries={countries}
           geometryData={geometryData}
-          hideAntarctica={!isGlobeMode}
+          hideAntarctica={hideAntarctica}
           color="#ffffff"
           opacity={0.2}
         />
       ) : null}
 
       {/* Country labels (political layer, zoom-dependent) */}
-      {showPolitical ? <CountryLabels countries={countries} hideAntarctica={!isGlobeMode} /> : null}
+      {showPolitical ? (
+        <CountryLabels countries={countries} hideAntarctica={hideAntarctica} />
+      ) : null}
 
       {/* Sun-lit atmosphere glow (globe mode only) */}
       <Atmosphere sunLit={enableDayNight} />

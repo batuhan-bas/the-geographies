@@ -9,6 +9,9 @@ import {
   useDayNight,
   morphProgressRef,
 } from "@/store/hooks";
+import { useMapStore } from "@/store/mapStore";
+import { PROJECTIONS, PROJECTION_LABELS, type ProjectionType } from "@/lib/geo/projection";
+import { transitionProjection } from "@/lib/geo/projectionTransition";
 import type { MapLayer } from "@/types/geo";
 
 // ==========================================
@@ -139,6 +142,8 @@ export const ControlPanel = () => {
       <div className="w-[214px] rounded-2xl overflow-hidden" style={GLASS_STYLE}>
         <ViewModeSection />
 
+        <ProjectionSection />
+
         <div style={{ height: "1px", background: "rgba(255,255,255,0.05)", margin: "0 10px" }} />
 
         <LayersSection />
@@ -227,6 +232,60 @@ const ViewButton = ({
     {label}
   </button>
 );
+
+// ==========================================
+// Projection Section
+// ==========================================
+
+const ProjectionSection = () => {
+  const projection = useMapStore((state) => state.projection);
+  const setProjection = useMapStore((state) => state.setProjection);
+  const isFlat = useMapStore((state) => state.viewMode === "flat");
+
+  const handleSelect = (next: ProjectionType) => {
+    if (next === projection) {
+      return;
+    }
+    setProjection(next);
+    transitionProjection(next);
+  };
+
+  return (
+    <div className="px-2.5 pb-2.5">
+      <p
+        className="text-[9px] font-semibold tracking-[0.14em] uppercase mb-1.5 px-1.5"
+        style={{ color: "rgba(255,255,255,0.22)" }}
+      >
+        Projection{isFlat ? "" : " (flat)"}
+      </p>
+      <div className="grid grid-cols-2 gap-[3px]">
+        {PROJECTIONS.map((id) => {
+          const active = id === projection;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => handleSelect(id)}
+              aria-pressed={active}
+              className="py-1.5 px-2 rounded-lg text-[11px] font-medium transition-all duration-200"
+              style={
+                active
+                  ? {
+                      background: "rgba(255,255,255,0.11)",
+                      color: "rgba(255,255,255,0.95)",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+                    }
+                  : { background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.4)" }
+              }
+            >
+              {PROJECTION_LABELS[id]}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 // ==========================================
 // Layers Section

@@ -26,7 +26,7 @@ Interactive 3D world map with morphable Globe/Flat projections built with Next.j
 
 ## Features
 
-- **Morphable Projections**: Smooth GPU-accelerated transition between 3D globe and 2D flat map views
+- **Morphable Projections**: Smooth GPU-accelerated transition between the 3D globe and a flat map in **Natural Earth, Robinson, Equirectangular or Mercator**; switching projections animates on the GPU without rebuilding geometry (Antarctica is shown in equal-area-style projections)
 - **Interactive Countries**: Click on countries to view detailed information in a glass-morphism slide-out panel
 - **Country Search**: Quick search by country name or ISO code with keyboard navigation and animated focus ring
 - **Multiple Layers**: Toggle between Political, Physical, Topography, Choropleth, and Heatmap layers
@@ -167,6 +167,7 @@ MIT
 - [x] CountryLabels performance (ref-based, no per-frame setState)
 - [x] Heatmap kernel fix (degree-space Gaussian with correct aspect ratio)
 - [x] ESLint + Prettier setup ([@batuhan-bas/configs](https://github.com/batuhan-bas/my-configs))
+- [x] Multiple flat projections with animated transitions
 - [ ] Mobile touch optimizations
 - [x] Country border smooth morph animation
 - [x] Progressive KTX2 texture loading (2K preview, device-aware tiers, 16K on zoom)

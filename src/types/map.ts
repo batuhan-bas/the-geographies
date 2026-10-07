@@ -1,3 +1,4 @@
+import type { ProjectionType } from "@/lib/geo/projection";
 import type {
   ViewMode,
   MapLayer,
@@ -15,6 +16,8 @@ import type {
 export interface MapState {
   // View Configuration
   viewMode: ViewMode;
+  /** Flat-mode map projection */
+  projection: ProjectionType;
   activeLayers: Set<MapLayer>;
   lodLevel: LODLevel;
   enableDayNight: boolean;
@@ -41,6 +44,7 @@ export interface MapState {
 export interface MapActions {
   // View Mode
   setViewMode: (mode: ViewMode) => void;
+  setProjection: (projection: ProjectionType) => void;
   toggleViewMode: () => void;
 
   // Layers

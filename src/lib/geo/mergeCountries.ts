@@ -1,48 +1,36 @@
 import * as THREE from "three";
 import type { CountryGeometryData } from "@/types/geo";
-import { geoToFlat, geoToSphere, GLOBE_RADIUS } from "./coordinates";
+import { geoToSphere, GLOBE_RADIUS } from "./coordinates";
 
 // ==========================================
 // GPU geometry from prebuilt country data
 // ==========================================
 
-/** Write sphere/flat positions for interleaved lon/lat into the target arrays */
-function projectLonLat(
-  lonLat: Float32Array,
-  sphereRadius: number,
-  flatZ: number,
-): { sphere: Float32Array; flat: Float32Array } {
-  const count = lonLat.length / 2;
-  const sphere = new Float32Array(count * 3);
-  const flat = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    const lon = lonLat[i * 2];
-    const lat = lonLat[i * 2 + 1];
-    const s = geoToSphere(lon, lat, sphereRadius);
-    const f = geoToFlat(lon, lat);
-    sphere[i * 3] = s.x;
-    sphere[i * 3 + 1] = s.y;
-    sphere[i * 3 + 2] = s.z;
-    flat[i * 3] = f.x;
-    flat[i * 3 + 1] = f.y;
-    flat[i * 3 + 2] = f.z + flatZ;
-  }
-  return { sphere, flat };
-}
-
+/**
+ * Morphable geometry: `spherePosition` for the globe, `lonLat` (degrees) for
+ * the flat projection computed in the vertex shader, and a per-vertex
+ * `countryIndex` for per-country styling and picking.
+ */
 function morphGeometry(
   lonLat: Float32Array,
   countryIds: Uint16Array,
   sphereRadius: number,
-  flatZ: number,
 ): THREE.BufferGeometry {
-  const { sphere, flat } = projectLonLat(lonLat, sphereRadius, flatZ);
+  const count = lonLat.length / 2;
+  const sphere = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const p = geoToSphere(lonLat[i * 2], lonLat[i * 2 + 1], sphereRadius);
+    sphere[i * 3] = p.x;
+    sphere[i * 3 + 1] = p.y;
+    sphere[i * 3 + 2] = p.z;
+  }
+
   const geometry = new THREE.BufferGeometry();
   const sphereAttr = new THREE.BufferAttribute(sphere, 3);
   // `position` is required by three.js; the vertex shader uses the morph attributes instead
   geometry.setAttribute("position", sphereAttr);
   geometry.setAttribute("spherePosition", sphereAttr);
-  geometry.setAttribute("flatPosition", new THREE.BufferAttribute(flat, 3));
+  geometry.setAttribute("lonLat", new THREE.BufferAttribute(lonLat, 2));
   geometry.setAttribute(
     "countryIndex",
     new THREE.BufferAttribute(Float32Array.from(countryIds), 1),
@@ -50,12 +38,9 @@ function morphGeometry(
   return geometry;
 }
 
-/**
- * All country fills in one indexed geometry: `spherePosition`, `flatPosition`
- * and a per-vertex `countryIndex` for per-country styling and picking.
- */
+/** All country fills in one indexed geometry */
 export function buildCountryFillGeometry(data: CountryGeometryData): THREE.BufferGeometry {
-  const geometry = morphGeometry(data.fillLonLat, data.fillCountry, GLOBE_RADIUS, 0);
+  const geometry = morphGeometry(data.fillLonLat, data.fillCountry, GLOBE_RADIUS);
   geometry.setIndex(new THREE.BufferAttribute(data.fillIndex, 1));
   return geometry;
 }
@@ -64,7 +49,6 @@ export function buildCountryFillGeometry(data: CountryGeometryData): THREE.Buffe
 export function buildCountryBorderGeometry(
   data: CountryGeometryData,
   sphereRadius: number,
-  flatZ: number,
 ): THREE.BufferGeometry {
-  return morphGeometry(data.borderLonLat, data.borderCountry, sphereRadius, flatZ);
+  return morphGeometry(data.borderLonLat, data.borderCountry, sphereRadius);
 }

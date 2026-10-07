@@ -3,17 +3,16 @@
 import { useRef, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { useHeatmap, useLayers, morphProgressRef } from "@/store/hooks";
+import { useHeatmap, useLayers } from "@/store/hooks";
+import { buildGlobeGrid } from "@/lib/geo/globeGrid";
+import { createMorphUniforms, morphVertexGlsl, syncMorphUniforms } from "@/lib/geo/morphShader";
 import { computeHeatmapTexture } from "@/lib/visualization";
 
 // ==========================================
 // Constants
 // ==========================================
 
-const GLOBE_RADIUS = 1.0;
-const FLAT_SCALE = 2.0;
 const SEGMENTS = 64;
-const DEG_TO_RAD = Math.PI / 180;
 
 // Render above political layer
 const SPHERE_OFFSET = 1.003;
@@ -46,71 +45,9 @@ export const HeatmapLayer = () => {
   }, [texture]);
 
   // Create morphable geometry
-  const geometry = useMemo(() => {
-    const geo = new THREE.BufferGeometry();
-
-    const widthSegments = SEGMENTS;
-    const heightSegments = SEGMENTS / 2;
-
-    const spherePositions: number[] = [];
-    const flatPositions: number[] = [];
-    const uvs: number[] = [];
-    const indices: number[] = [];
-
-    for (let y = 0; y <= heightSegments; y++) {
-      const latitude = 90 - (y / heightSegments) * 180;
-
-      for (let x = 0; x <= widthSegments; x++) {
-        const longitude = (x / widthSegments) * 360 - 180;
-
-        // Sphere position
-        const phi = (90 - latitude) * DEG_TO_RAD;
-        const theta = (longitude + 180) * DEG_TO_RAD;
-        const radius = GLOBE_RADIUS * SPHERE_OFFSET;
-
-        spherePositions.push(
-          -radius * Math.sin(phi) * Math.cos(theta),
-          radius * Math.cos(phi),
-          radius * Math.sin(phi) * Math.sin(theta),
-        );
-
-        // Flat position
-        flatPositions.push(
-          (longitude / 180) * FLAT_SCALE,
-          (latitude / 90) * FLAT_SCALE * 0.5,
-          FLAT_Z_OFFSET,
-        );
-
-        // UV - must match kernel coordinates exactly
-        // Kernel uses: u = (lon + 180) / 360, v = (lat + 90) / 180
-        const u = (longitude + 180) / 360;
-        const v = (latitude + 90) / 180;
-        uvs.push(u, v);
-      }
-    }
-
-    // Create indices
-    for (let y = 0; y < heightSegments; y++) {
-      for (let x = 0; x < widthSegments; x++) {
-        const a = y * (widthSegments + 1) + x;
-        const b = a + 1;
-        const c = a + (widthSegments + 1);
-        const d = c + 1;
-
-        indices.push(a, c, b);
-        indices.push(b, c, d);
-      }
-    }
-
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(spherePositions, 3));
-    geo.setAttribute("spherePosition", new THREE.Float32BufferAttribute(spherePositions, 3));
-    geo.setAttribute("flatPosition", new THREE.Float32BufferAttribute(flatPositions, 3));
-    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-    geo.setIndex(indices);
-    geo.computeVertexNormals();
-
-    return geo;
-  }, []);
+  // Morphable lat/lon grid (flat position is projected in the vertex shader)
+  const geometry = useMemo(() => buildGlobeGrid(SEGMENTS, SPHERE_OFFSET), []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
   // Create shader material
   const shaderMaterial = useMemo(() => {
@@ -126,22 +63,18 @@ export const HeatmapLayer = () => {
 
     return new THREE.ShaderMaterial({
       uniforms: {
-        morphProgress: { value: 0 },
+        ...createMorphUniforms(FLAT_Z_OFFSET),
         heatmapTexture: { value: texture || emptyTexture },
         opacity: { value: config.opacity },
       },
       vertexShader: `
-        attribute vec3 spherePosition;
-        attribute vec3 flatPosition;
-
-        uniform float morphProgress;
+        ${morphVertexGlsl}
 
         varying vec2 vUv;
 
         void main() {
           vUv = uv;
-          vec3 morphedPosition = mix(spherePosition, flatPosition, morphProgress);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(morphedPosition, 1.0);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(morphPosition(), 1.0);
         }
       `,
       fragmentShader: `
@@ -185,7 +118,7 @@ export const HeatmapLayer = () => {
   // Update morph progress every frame
   useFrame(() => {
     if (materialRef.current) {
-      materialRef.current.uniforms.morphProgress.value = morphProgressRef.current;
+      syncMorphUniforms(materialRef.current.uniforms);
       materialRef.current.uniforms.opacity.value = config.opacity;
     }
   });
