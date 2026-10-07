@@ -47,6 +47,8 @@ export const ControlPanel = () => {
   // only flips once the morph animation completes)
   const [selectedView, setSelectedView] = useState<ViewMode>(viewMode);
   const isFlat = selectedView === "flat";
+  // Phones: layers collapse behind a button so the map stays visible
+  const [layersOpen, setLayersOpen] = useState(false);
 
   const handleViewChange = (next: ViewMode) => {
     if (next === selectedView || isAnimating) {
@@ -67,11 +69,29 @@ export const ControlPanel = () => {
   };
 
   return (
-    <div className="glass enter-spring absolute bottom-5 left-5 z-20 grid w-[268px] gap-3 rounded-panel p-3 [--enter-y:10px]">
-      <ViewSegment value={selectedView} onChange={handleViewChange} />
+    <div className="glass enter-spring absolute bottom-5 left-5 z-20 grid w-[min(268px,calc(100%-40px))] gap-3 rounded-panel p-3 [--enter-y:10px]">
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
+          <ViewSegment value={selectedView} onChange={handleViewChange} />
+        </div>
+        <button
+          type="button"
+          onClick={() => setLayersOpen((v) => !v)}
+          aria-expanded={layersOpen}
+          aria-controls="map-layers"
+          className={`pressable grid size-[34px] place-items-center rounded-[10px] sm:hidden ${
+            layersOpen ? "bg-accent text-white" : "bg-fill-1 text-label-2"
+          }`}
+          aria-label="Map layers"
+        >
+          <LayersIcon />
+        </button>
+      </div>
       <ProjectionRow open={isFlat} />
-      <SectionLabel>Map layers</SectionLabel>
-      <LayerList isFlat={isFlat} />
+      <div id="map-layers" className={`${layersOpen ? "grid" : "hidden"} gap-3 sm:grid`}>
+        <SectionLabel>Map layers</SectionLabel>
+        <LayerList isFlat={isFlat} />
+      </div>
     </div>
   );
 };
@@ -238,7 +258,7 @@ const SwitchRow = ({
     </span>
     <span className="min-w-0 group-disabled:opacity-40">
       <span className="block text-[14px] font-medium text-label">{label}</span>
-      {hint ? <span className="block text-[11.5px] text-label-3">{hint}</span> : null}
+      {hint ? <span className="block text-[11.5px] text-label-2">{hint}</span> : null}
     </span>
     <span
       aria-hidden="true"
@@ -295,6 +315,15 @@ function MapIcon() {
     <Icon size={14}>
       <path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z" />
       <path d="M9 4v14M15 6v14" />
+    </Icon>
+  );
+}
+
+function LayersIcon() {
+  return (
+    <Icon size={17}>
+      <path d="m12 3 9 5-9 5-9-5z" />
+      <path d="m3 13 9 5 9-5" />
     </Icon>
   );
 }
