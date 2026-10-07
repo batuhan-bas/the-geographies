@@ -29,6 +29,8 @@ const TEXTURES = [
   { name: "earth_daymap", src: "earth_daymap.jpg", kind: "color", tiers: COLOR_TIERS },
   { name: "earth_hypsometric", src: "earth_hypsometric.jpg", kind: "color", tiers: COLOR_TIERS },
   { name: "earth_elevation", src: "earth_topology.png", kind: "data", tiers: DATA_TIERS },
+  // NASA Black Marble 2016 (13500px source, so no 16K tier)
+  { name: "earth_night", src: "earth_night.jpg", kind: "color", tiers: [2048, 4096, 8192] },
 ];
 
 // Images are flipped at encode time because compressed textures can't use flipY
