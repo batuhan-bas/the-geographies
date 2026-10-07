@@ -19,7 +19,8 @@ import type { CountryFeature } from "@/types/geo";
 const CameraController = () => {
   const { camera } = useThree();
   const controlsRef = useRef<any>(null);
-  const { selectedCountry, viewMode } = useMapStore();
+  const selectedCountry = useMapStore((state) => state.selectedCountry);
+  const viewMode = useMapStore((state) => state.viewMode);
   const { morphProgress } = useMorphAnimation();
 
   // Animate camera to focus on selected country

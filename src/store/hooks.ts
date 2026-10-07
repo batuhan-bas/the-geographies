@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import { useShallow } from "zustand/react/shallow";
 import { useMapStore } from "./mapStore";
 import { useVisualizationStore } from "./visualizationStore";
@@ -8,6 +9,12 @@ import type { MapLayer } from "@/types/geo";
 // ==========================================
 
 export const morphProgressRef = { current: 0 };
+
+// ==========================================
+// Global sun direction (mutated in place every frame, shared by shader uniforms)
+// ==========================================
+
+export const sunDirectionRef = { current: new THREE.Vector3(1, 0.3, 0).normalize() };
 
 // ==========================================
 // Custom Hooks for Map Store

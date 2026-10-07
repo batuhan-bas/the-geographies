@@ -4,7 +4,8 @@ import { useRef, useMemo, useCallback } from "react";
 import { useThree, useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMapStore } from "@/store/mapStore";
-import { morphProgressRef, useDayNight, useChoropleth, useLayers } from "@/store/hooks";
+import { morphProgressRef, sunDirectionRef } from "@/store/hooks";
+import { useVisualizationStore } from "@/store/visualizationStore";
 import { interpolateColor } from "@/lib/visualization/colorScales";
 import {
   featureToMorphableGeometry,
@@ -43,34 +44,37 @@ function getCountryColor(continent: string | undefined, index: number): string {
 // CountryMesh Component
 // ==========================================
 
-// Default sun direction (pointing towards viewer's right and slightly up)
-const DEFAULT_SUN_DIRECTION = new THREE.Vector3(1, 0.3, 0.5).normalize();
+// Scratch objects for front-face tests (reused to avoid per-event allocations)
+const tmpToCamera = new THREE.Vector3();
+const tmpNormal = new THREE.Vector3();
+const tmpNormalMatrix = new THREE.Matrix3();
 
 interface CountryMeshProps {
   feature: CountryFeature;
   index: number;
-  sunDirection?: THREE.Vector3;
 }
 
-export const CountryMesh = ({
-  feature,
-  index,
-  sunDirection = DEFAULT_SUN_DIRECTION,
-}: CountryMeshProps) => {
+export const CountryMesh = ({ feature, index }: CountryMeshProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const { camera } = useThree();
 
-  const { interaction, setHoveredFeature, selectCountry } = useMapStore();
-  const { enableDayNight } = useDayNight();
-  const { activeLayers } = useLayers();
-  const { config: choroplethConfig, data: choroplethData } = useChoropleth();
-
   const featureId = feature.properties?.iso_a3 || `country-${index}`;
+
+  // Narrow selectors: hovering one country re-renders only the two affected meshes,
+  // not all ~250 of them.
+  const isHovered = useMapStore((state) => state.interaction.hoveredFeatureId === featureId);
+  const isSelected = useMapStore((state) => state.interaction.selectedFeatureId === featureId);
+  const setHoveredFeature = useMapStore((state) => state.setHoveredFeature);
+  const selectCountry = useMapStore((state) => state.selectCountry);
+  const enableDayNight = useMapStore((state) => state.enableDayNight);
+  const choroplethLayerActive = useMapStore((state) => state.activeLayers.has("choropleth"));
+  const choroplethConfig = useVisualizationStore((state) => state.choroplethConfig);
+  const choroplethData = useVisualizationStore((state) => state.choroplethData);
 
   // Check if choropleth is active and get color from data
   const choroplethColor = useMemo(() => {
-    if (!activeLayers.has("choropleth") || !choroplethConfig.enabled) {
+    if (!choroplethLayerActive || !choroplethConfig.enabled) {
       return null;
     }
     const dataPoint = choroplethData.get(featureId);
@@ -78,9 +82,7 @@ export const CountryMesh = ({
       return choroplethConfig.nullColor;
     }
     return interpolateColor(dataPoint.value, choroplethConfig.colorScale);
-  }, [activeLayers, choroplethConfig, choroplethData, featureId]);
-  const isHovered = interaction.hoveredFeatureId === featureId;
-  const isSelected = interaction.selectedFeatureId === featureId;
+  }, [choroplethLayerActive, choroplethConfig, choroplethData, featureId]);
 
   // Create morphable geometry ONCE
   const geometry = useMemo(() => {
@@ -99,6 +101,8 @@ export const CountryMesh = ({
     // Update shader uniforms directly
     if (materialRef.current) {
       materialRef.current.uniforms.morphProgress.value = progress;
+      // Bind the shared sun vector by reference (R3F would copy it once if passed as a prop)
+      materialRef.current.uniforms.sunDirection.value = sunDirectionRef.current;
       materialRef.current.uniforms.enableDayNight.value = enableDayNight && progress < 0.5;
     }
 
@@ -112,15 +116,12 @@ export const CountryMesh = ({
     }
   });
 
-  // Check if we're in globe mode (for front-facing checks)
-  const isGlobeMode = morphProgressRef.current < 0.5;
-
   // Check if the intersection is on the front-facing side (visible to camera)
   // Only relevant in globe mode - in flat mode all faces are front-facing
   const isFrontFacing = useCallback(
     (event: ThreeEvent<PointerEvent | MouseEvent>) => {
-      // In flat mode, always consider front-facing
-      if (!isGlobeMode) {
+      // In flat mode, always consider front-facing (read live: no re-render on morph)
+      if (morphProgressRef.current >= 0.5) {
         return true;
       }
 
@@ -129,20 +130,19 @@ export const CountryMesh = ({
       }
 
       // Get the direction from hit point to camera
-      const toCamera = new THREE.Vector3();
-      toCamera.subVectors(camera.position, event.point).normalize();
+      tmpToCamera.subVectors(camera.position, event.point).normalize();
 
       // Check if face normal points towards camera (dot product > 0 means front-facing)
-      const faceNormal = event.face.normal.clone();
+      tmpNormal.copy(event.face.normal);
 
       // Transform normal to world space if mesh has rotation
       if (meshRef.current) {
-        faceNormal.applyMatrix3(new THREE.Matrix3().getNormalMatrix(meshRef.current.matrixWorld));
+        tmpNormal.applyMatrix3(tmpNormalMatrix.getNormalMatrix(meshRef.current.matrixWorld));
       }
 
-      return faceNormal.dot(toCamera) > 0;
+      return tmpNormal.dot(tmpToCamera) > 0;
     },
-    [camera, isGlobeMode],
+    [camera],
   );
 
   // Event handlers - only trigger if front-facing
@@ -207,7 +207,6 @@ export const CountryMesh = ({
         color={color}
         emissive={emissive}
         emissiveIntensity={emissiveIntensity}
-        sunDirection={sunDirection}
         enableDayNight={enableDayNight}
         side={THREE.DoubleSide}
       />
