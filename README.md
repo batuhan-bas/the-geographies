@@ -1,174 +1,162 @@
 # The Geographies
 
-Interactive 3D world map with morphable Globe/Flat projections built with Next.js, React Three Fiber, and Three.js.
+An interactive 3D world map that morphs between a globe and four flat projections, lit by the real sun, with NASA night lights, a sun-aware atmosphere and an Apple Maps–style glass interface.
 
-![Globe View](https://img.shields.io/badge/View-Globe-blue) ![Flat View](https://img.shields.io/badge/View-Flat-green)
-
-## Screenshots
+Built with Next.js, React Three Fiber and Three.js.
 
 <p align="center">
-  <img src="public/screenshots/Political.png" alt="Political Globe — continent-based coloring with country labels" width="100%">
+  <img src="public/screenshots/hero.jpg" alt="Globe with Brazil selected: the country card shows its silhouette, population, GDP and details next to the glass control panel" width="100%">
 </p>
 
 <p align="center">
-  <img src="public/screenshots/Physical.png" alt="Physical Globe — 16K NASA Blue Marble texture" width="49%">
-  <img src="public/screenshots/Tepography.png" alt="Topography Globe — hypsometric tint with contour lines" width="49%">
+  <img src="public/screenshots/night-lights.jpg" alt="Night side over Asia with NASA Black Marble city lights and the terminator at the edge" width="49%">
+  <img src="public/screenshots/topography.jpg" alt="Topography layer: hypsometric tint with contour lines over South America" width="49%">
 </p>
 
 <p align="center">
-  <img src="public/screenshots/DayAndNight.png" alt="Day/Night cycle — twilight terminator with city lights" width="49%">
-  <img src="public/screenshots/Political-Data.png" alt="Choropleth — data visualization overlay with legend" width="49%">
+  <img src="public/screenshots/flat-natural-earth.jpg" alt="Flat map in the Natural Earth projection with continent colors and labels" width="49%">
+  <img src="public/screenshots/flat-robinson-physical.jpg" alt="Physical layer in the Robinson projection" width="49%">
 </p>
 
 <p align="center">
-  <img src="public/screenshots/Heatmap.png" alt="Heatmap — Gaussian kernel density overlay on Physical globe" width="100%">
+  <img src="public/screenshots/search.jpg" alt="Search with results showing continent color, subregion, ISO code and coordinates" width="49%">
+  <img src="public/screenshots/data-choropleth.jpg" alt="Population choropleth with its legend on the flat map" width="49%">
+</p>
+
+<p align="center">
+  <img src="public/screenshots/physical.jpg" alt="Physical layer: NASA Blue Marble over Africa under the real sun" width="72%">
+  <img src="public/screenshots/mobile.jpg" alt="Phone layout: compact controls and the country card as a bottom sheet" width="21%">
 </p>
 
 ## Features
 
-- **Morphable Projections**: Smooth GPU-accelerated transition between the 3D globe and a flat map in **Natural Earth, Robinson, Equirectangular or Mercator**; switching projections animates on the GPU without rebuilding geometry (Antarctica is shown in equal-area-style projections)
-- **Interactive Countries**: Click on countries to view detailed information in a glass-morphism slide-out panel
-- **Country Search**: Quick search by country name or ISO code with keyboard navigation and animated focus ring
-- **Multiple Layers**: Toggle between Political, Physical, Topography, Choropleth, and Heatmap layers
-- **Topography Layer**: Hypsometric tint coloring with antialiased contour lines from elevation data
-- **Data Visualization**: Choropleth maps for country data and heatmaps with Gaussian kernel density
-- **Real Sun Position**: The terminator follows the actual subsolar point for the current UTC time (solar ephemeris), with optional time-lapse via `timeScale`
-- **Night Lights**: NASA Black Marble city lights on the night side of both the Physical and Political layers
-- **Atmosphere & Ocean**: Sun-aware atmospheric glow (blue by day, orange at the terminator), ocean sun glint with Fresnel sky reflection, and a starfield
-- **16K Textures, streamed**: NASA Blue Marble and Natural Earth imagery as GPU-compressed KTX2, loaded progressively (2K preview → 4K/8K device tier → 16K when zoomed in on desktop)
-- **Continent-based Coloring**: Warm color palette organized by continent, echoed in panel avatar and search results
-- **Glass Morphism UI**: Deep-blur panels with layered shadows, accent bars, and focus-ring animations
-- **Responsive Controls**: Pan, zoom, and rotate with mouse/touch
+### The map
 
-## Tech Stack
+- **Globe ⇄ flat morph** with four flat projections: **Natural Earth**, **Robinson**, **Equirectangular** and **Mercator**. Switching projections animates on the GPU without rebuilding any geometry; Antarctica is shown in the equal-area-style projections.
+- **Real sun position**: the day/night terminator follows the actual subsolar point for the current UTC time.
+- **Night lights** from NASA Black Marble on the night side of the Physical and Political layers.
+- **Atmosphere and ocean**: a sun-aware glow (blue by day, orange at the terminator), ocean sun glint with Fresnel sky reflection, and a starfield.
+- **Layers**: Political (continent colors), Physical (16K NASA Blue Marble), Topography (hypsometric tint + contour lines), population choropleth and a Gaussian heatmap.
+- **Correct borders**: enclaves such as Lesotho in South Africa or San Marino and Vatican City in Italy are cut out of the surrounding country.
+- **Readable labels**: country names are placed by population and never overlap.
 
-- **Framework**: Next.js 16 with App Router
-- **3D Rendering**: React Three Fiber + Three.js
-- **Animations**: GSAP for smooth transitions
-- **State Management**: Zustand
-- **Styling**: Tailwind CSS 4
-- **Language**: TypeScript
-- **Linting**: ESLint 9 + [@batuhan-bas/configs](https://github.com/batuhan-bas/my-configs) (base TS + React rules)
-- **Formatting**: Prettier 3 + [@batuhan-bas/configs](https://github.com/batuhan-bas/my-configs)
+### The interface
 
-## Getting Started
+- **Search** by name or ISO code with ⌘K / `/`, arrow keys and Enter.
+- **Country card** with the country's silhouette, population, GDP, region, coordinates and economy, plus Focus, Copy coordinates and Wikipedia actions.
+- **Control panel** with a Globe/Flat switch, projection chips (flat mode only) and layer switches.
+- **Dark glass design** inspired by Apple Maps, with spring animations that respect *reduce motion*. On phones the layers fold behind a button and the card becomes a bottom sheet.
 
-### Prerequisites
+### Performance
 
-- Node.js 18+
-- pnpm (recommended) or npm
+| | Before | After |
+|---|---|---|
+| Political layer draw calls | ~250 (one mesh per country) | 1 (merged mesh, GPU picking) |
+| Borders | hundreds of line meshes | 1 draw call |
+| Labels | ~250 meshes + per-label frame callbacks | 1 batched text draw, collision culling |
+| Re-renders while the sun moves | whole scene, every frame | none (shared uniform) |
+| Physical layer first download | 23.3 MB of 16K images | 0.24 MB preview, then 2.8 MB (8K) |
+| Day map in GPU memory | ~700 MB (16K RGBA) | GPU-compressed KTX2 tiers |
+| Country data | 1 MB GeoJSON (gzip), triangulated in the browser | 671 KB binary (gzip), prebuilt |
 
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/the-geographies.git
-cd the-geographies
-
-# Install dependencies
-pnpm install
-
-# Start development server
-pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### Build for Production
-
-```bash
-pnpm build
-pnpm start
-```
-
-### Linting & Formatting
-
-```bash
-pnpm lint              # ESLint
-pnpm format            # Prettier — write
-pnpm format:check      # Prettier — check only
-```
-
-### Rebuilding Country Geometry
-
-Country polygons are triangulated at build time (earcut with holes, crack-free curvature subdivision) and shipped as quantized, delta-encoded binary buffers, so the browser never triangulates.
-
-```bash
-pnpm geometry          # assets/geo-src/*.geojson → public/data/countries.{json,bin}
-```
-
-### Rebuilding Textures
-
-Source images live in `assets/textures-src/` (not deployed). `pnpm textures` builds the KTX2 tiers into `public/textures/` (Basis ETC1S for color maps, zstd-compressed R8 for elevation). It requires [`toktx`](https://github.com/KhronosGroup/KTX-Software/releases) (KTX-Software ≥ 4.3) on `PATH`, or set `TOKTX=/path/to/toktx`.
-
-```bash
-pnpm textures          # build missing/outdated tiers
-pnpm textures --force  # rebuild all tiers
-```
-
-## Project Structure
-
-```
-src/
-├── app/                    # Next.js App Router
-├── components/
-│   ├── canvas/            # 3D components (Globe, CountriesLayer, CountryBorders, CountryLabels, ...)
-│   ├── ui/                # UI components (ControlPanel, CountryPanel, CountrySearch)
-│   └── visualization/     # Data visualization (HeatmapLayer, Legend)
-├── lib/
-│   ├── geo/               # Geographic utilities (projections, morphing, merged geometry)
-│   ├── textures/          # KTX2 loading + progressive resolution tiers
-│   └── visualization/     # Visualization utilities (color scales, heatmap kernel)
-├── store/                 # Zustand state management
-└── types/                 # TypeScript type definitions
-
-assets/geo-src/            # Natural Earth 50m admin-0 GeoJSON (source)
-assets/textures-src/       # 16K source images (NASA Blue Marble, GEBCO, Natural Earth)
-scripts/build-geometry.mjs # GeoJSON → triangulated, quantized binary geometry
-scripts/build-textures.mjs # Source images → KTX2 tiers
-
-public/
-├── basis/                 # Basis Universal transcoder (from three.js)
-├── data/                  # Prebuilt country geometry (countries.json + countries.bin)
-└── textures/              # KTX2 texture tiers (2K–16K)
-```
+Textures load progressively: a 2K preview first, then the device's tier (8K on desktop, 4K on phones), and 16K only when you zoom in on desktop.
 
 ## Controls
 
-- **Globe Mode**: Drag to rotate, scroll to zoom
-- **Flat Mode**: Drag to pan, scroll to zoom
-- **Click**: Select a country to view details
-- **Search**: Type to find countries (top center), use arrow keys to navigate
-- **Control Panel**: Switch views, toggle layers, and effects (bottom-left)
+| Action | Globe | Flat |
+|---|---|---|
+| Drag | Rotate | Pan |
+| Scroll / pinch | Zoom | Zoom |
+| Click a country | Open its card | Open its card |
+| ⌘K or `/` | Search | Search |
+| Esc | Close search or card | Close search or card |
 
-## Data Sources
+## Getting started
 
-- Country boundaries: [Natural Earth](https://www.naturalearthdata.com/) (50m resolution)
-- Day map texture: [NASA Blue Marble](https://visibleearth.nasa.gov/) (16K)
-- Elevation data: [GEBCO](https://www.gebco.net/) via NASA (16K)
-- Hypsometric tint: [Natural Earth](https://www.naturalearthdata.com/) (16K)
-- Night lights: [NASA Black Marble 2016](https://earthobservatory.nasa.gov/features/NightLights) (13.5K)
+Requires Node.js 20.9+ and pnpm.
+
+```bash
+git clone https://github.com/batuhan-bas/the-geographies.git
+cd the-geographies
+pnpm install
+pnpm dev
+```
+
+Open the URL printed in the terminal (usually http://localhost:3000). Add `?stats` to the URL to show the FPS meter.
+
+```bash
+pnpm build && pnpm start   # production build
+pnpm lint                  # ESLint
+pnpm format                # Prettier
+```
+
+### Rebuilding the data
+
+The country geometry and the textures are prebuilt and committed, so you only need these when you change the sources.
+
+```bash
+pnpm geometry          # assets/geo-src/*.geojson → public/data/countries.{json,bin}
+pnpm textures          # assets/textures-src/* → public/textures/*.ktx2 (missing or outdated tiers)
+pnpm textures --force  # rebuild every tier
+```
+
+- **Geometry**: polygons are triangulated with earcut (holes included), subdivided along great-circle edges without cracks, quantized and delta-encoded.
+- **Textures**: Basis ETC1S for color maps and zstd-compressed R8 for elevation. Requires [`toktx`](https://github.com/KhronosGroup/KTX-Software/releases) (KTX-Software 4.3+) on your `PATH`, or `TOKTX=/path/to/toktx`.
+
+## Tech stack
+
+- **Framework**: Next.js 16 (App Router), React 19, TypeScript
+- **3D**: React Three Fiber, Three.js, drei, troika-three-text
+- **State**: Zustand
+- **Animation**: GSAP and CSS springs
+- **Styling**: Tailwind CSS 4, design tokens in [`MASTER.md`](MASTER.md)
+- **Tooling**: ESLint 9 and Prettier 3 with [@batuhan-bas/configs](https://github.com/batuhan-bas/my-configs)
+
+## Project structure
+
+```
+src/
+├── app/                   # Next.js app, global tokens (globals.css)
+├── components/
+│   ├── canvas/            # Globe, CountriesLayer, CountryBorders, CountryLabels, Ocean, Physical, Topography
+│   ├── effects/           # Atmosphere
+│   ├── ui/                # CountrySearch, ControlPanel, CountryPanel
+│   └── visualization/     # Heatmap layer, legends
+├── lib/
+│   ├── geo/               # Projections (CPU + GLSL), sun position, geometry, formatting
+│   ├── textures/          # KTX2 loading and progressive tiers
+│   └── visualization/     # Color scales, heatmap kernel
+├── store/                 # Zustand stores
+└── types/
+
+assets/                    # Source GeoJSON and 16K images (not deployed)
+scripts/                   # build-geometry.mjs, build-textures.mjs
+public/
+├── basis/                 # Basis Universal transcoder
+├── data/                  # Prebuilt country geometry
+└── textures/              # KTX2 texture tiers (2K–16K)
+```
+
+## Data sources
+
+- Country boundaries: [Natural Earth](https://www.naturalearthdata.com/) admin-0, 1:50m
+- Day map: [NASA Blue Marble](https://visibleearth.nasa.gov/)
+- Night lights: [NASA Black Marble 2016](https://earthobservatory.nasa.gov/features/NightLights)
+- Elevation: [GEBCO](https://www.gebco.net/) via NASA
+- Hypsometric tint: [Natural Earth](https://www.naturalearthdata.com/)
+
+## Roadmap
+
+- [x] Merged, single-draw-call countries, borders and labels with GPU picking
+- [x] Progressive KTX2 textures
+- [x] Prebuilt geometry with enclaves and crack-free subdivision
+- [x] Real sun, night lights, atmosphere and ocean glint
+- [x] Natural Earth, Robinson, Equirectangular and Mercator projections
+- [x] Apple Maps–style glass interface
+- [ ] Capitals and city labels when zoomed in
+- [ ] Time-of-day slider for the sun
+- [ ] Touch gestures tuned for phones
 
 ## License
 
 MIT
-
-## Roadmap
-
-- [x] Day/night cycle animation
-- [x] Real-time sun position, Black Marble night lights, atmosphere glow, ocean glint
-- [x] Country search functionality
-- [x] Data visualization overlays (Choropleth & Heatmap)
-- [x] Topography layer with hypsometric tint and contour lines
-- [x] 16K texture upgrade (NASA Blue Marble, GEBCO, Natural Earth)
-- [x] Flat mode rendering fixes (smooth globe-flat transitions)
-- [x] Glass morphism UI (ControlPanel, CountrySearch, CountryPanel)
-- [x] CountryPanel redesign (continent-colored avatar, GlassCard layout)
-- [x] CountryLabels performance (ref-based, no per-frame setState)
-- [x] Heatmap kernel fix (degree-space Gaussian with correct aspect ratio)
-- [x] ESLint + Prettier setup ([@batuhan-bas/configs](https://github.com/batuhan-bas/my-configs))
-- [x] Multiple flat projections with animated transitions
-- [ ] Mobile touch optimizations
-- [x] Country border smooth morph animation
-- [x] Progressive KTX2 texture loading (2K preview, device-aware tiers, 16K on zoom)
-- [x] Single-draw-call countries, borders and labels with GPU picking and label collision

@@ -12,22 +12,18 @@ interface LegendProps {
   colorScale: ColorScale;
   domain: [number, number];
   format?: (value: number) => string;
-  position?: "top-right" | "bottom-right" | "bottom-left";
+  /** Stack slot at the bottom center (0 = lowest), so two legends never overlap */
+  slot?: 0 | 1;
 }
 
+/** Glass legend chip, bottom center between the controls and the country card */
 export const Legend = ({
   title,
   colorScale,
   domain,
   format = (v) => v.toLocaleString(),
-  position = "bottom-right",
+  slot = 0,
 }: LegendProps) => {
-  const positionClasses = {
-    "top-right": "top-6 right-6",
-    "bottom-right": "bottom-24 right-6",
-    "bottom-left": "bottom-24 left-64",
-  };
-
   const gradient = useMemo(
     () => `linear-gradient(to right, ${colorScale.colors.join(", ")})`,
     [colorScale.colors],
@@ -35,18 +31,13 @@ export const Legend = ({
 
   return (
     <div
-      className={`absolute ${positionClasses[position]} z-10 bg-black/80 backdrop-blur-xl rounded-xl border border-white/10 p-3 min-w-[180px]`}
+      className={`glass enter-spring absolute left-1/2 z-10 w-[220px] -translate-x-1/2 rounded-control px-3 pt-2.5 pb-2 ${
+        slot === 0 ? "bottom-5" : "bottom-[92px]"
+      }`}
     >
-      {/* Title */}
-      <div className="text-[10px] font-semibold tracking-widest uppercase text-white/50 mb-2">
-        {title}
-      </div>
-
-      {/* Gradient bar */}
-      <div className="h-2.5 rounded-sm mb-1.5" style={{ background: gradient }} />
-
-      {/* Scale labels */}
-      <div className="flex justify-between text-[11px] text-white/70">
+      <div className="mb-2 text-[12px] font-semibold text-label-2">{title}</div>
+      <div className="mb-1.5 h-2 rounded-full" style={{ background: gradient }} />
+      <div className="flex justify-between font-mono text-[11px] text-label-3 tabular-nums">
         <span>{format(domain[0])}</span>
         <span>{format(domain[1])}</span>
       </div>
@@ -94,7 +85,7 @@ export const HeatmapLegend = () => {
       title="Intensity"
       colorScale={config.colorScale}
       domain={[0, config.maxIntensity]}
-      position="bottom-left"
+      slot={1}
     />
   );
 };

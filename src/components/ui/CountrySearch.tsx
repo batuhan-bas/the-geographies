@@ -2,281 +2,243 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useCountries, useCountrySelection } from "@/store/hooks";
+import { getCountryColor } from "@/lib/geo/countryColors";
+import { formatCoordinates } from "@/lib/geo/format";
 import type { CountryFeature } from "@/types/geo";
 
-// ==========================================
-// Continent Colors (matching CountryMesh)
-// ==========================================
+const MAX_RESULTS = 6;
 
-const CONTINENT_COLORS: Record<string, string> = {
-  Europe: "#5d9b6b",
-  Asia: "#d4a574",
-  Africa: "#e8a83c",
-  "North America": "#7eb5a6",
-  "South America": "#6bc268",
-  Oceania: "#c287a5",
-  Antarctica: "#b8c4ce",
+function matchScore(country: CountryFeature, q: string): number {
+  const name = country.properties.name.toLowerCase();
+  if (name.startsWith(q)) {
+    return 0;
+  }
+  if (name.includes(q)) {
+    return 1;
+  }
+  const { iso_a2: iso2, iso_a3: iso3 } = country.properties;
+  if (iso2?.toLowerCase() === q || iso3?.toLowerCase() === q) {
+    return 2;
+  }
+  return -1;
+}
+
+/** Country name with the matched part highlighted */
+const HighlightedName = ({ name, query }: { name: string; query: string }) => {
+  const at = name.toLowerCase().indexOf(query);
+  if (at < 0) {
+    return name;
+  }
+  return (
+    <>
+      {name.slice(0, at)}
+      <mark className="bg-transparent text-accent">{name.slice(at, at + query.length)}</mark>
+      {name.slice(at + query.length)}
+    </>
+  );
 };
 
-const GLASS_STYLE = {
-  background: "rgba(8, 13, 26, 0.84)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  boxShadow:
-    "0 20px 60px rgba(0, 0, 0, 0.55), 0 0 0 0.5px rgba(255, 255, 255, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.06)",
-} as const;
-
 // ==========================================
-// CountrySearch Component
+// CountrySearch — Apple Maps style search field (MASTER.md › Search field)
 // ==========================================
 
 export const CountrySearch = () => {
   const countries = useCountries();
-  const { selectCountry, selectedCountry } = useCountrySelection();
+  const { selectCountry } = useCountrySelection();
 
   const [query, setQuery] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Filter countries based on query
-  const filteredCountries = useMemo(() => {
-    if (!query.trim()) {
+  const normalized = query.trim().toLowerCase();
+
+  const results = useMemo(() => {
+    if (!normalized) {
       return [];
     }
-    const q = query.toLowerCase();
     return countries
-      .filter((c) => {
-        const name = c.properties?.name?.toLowerCase() || "";
-        const iso2 = c.properties?.iso_a2?.toLowerCase() || "";
-        const iso3 = c.properties?.iso_a3?.toLowerCase() || "";
-        return name.includes(q) || iso2.includes(q) || iso3.includes(q);
-      })
-      .sort((a, b) => {
-        const aName = a.properties?.name?.toLowerCase() || "";
-        const bName = b.properties?.name?.toLowerCase() || "";
-        const aStartsWith = aName.startsWith(q);
-        const bStartsWith = bName.startsWith(q);
-        if (aStartsWith && !bStartsWith) {
-          return -1;
-        }
-        if (!aStartsWith && bStartsWith) {
-          return 1;
-        }
-        return aName.localeCompare(bName);
-      })
-      .slice(0, 8);
-  }, [countries, query]);
+      .map((country) => ({ country, score: matchScore(country, normalized) }))
+      .filter((r) => r.score >= 0)
+      .sort(
+        (a, b) =>
+          a.score - b.score || a.country.properties.name.localeCompare(b.country.properties.name),
+      )
+      .slice(0, MAX_RESULTS)
+      .map((r) => r.country);
+  }, [countries, normalized]);
 
-  // Open dropdown when there are results
+  const isOpen = isFocused && normalized.length > 0;
+  const activeIndex = Math.min(highlightedIndex, Math.max(0, results.length - 1));
+
+  // ⌘K / Ctrl+K / "/" focus the field from anywhere
   useEffect(() => {
-    setIsOpen(filteredCountries.length > 0);
-    setHighlightedIndex(0);
-  }, [filteredCountries]);
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const typing = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA";
+      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !typing)) {
+        e.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   // Close on outside click
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
+    const onPointerDown = (e: PointerEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
         setIsFocused(false);
       }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
   }, []);
 
-  // Handle country selection
   const handleSelect = useCallback(
     (country: CountryFeature) => {
       selectCountry(country);
       setQuery("");
-      setIsOpen(false);
       setIsFocused(false);
       inputRef.current?.blur();
     },
     [selectCountry],
   );
 
-  // Keyboard navigation
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      switch (e.key) {
-        case "ArrowDown":
-          e.preventDefault();
-          setHighlightedIndex((prev) => (prev < filteredCountries.length - 1 ? prev + 1 : prev));
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : 0));
-          break;
-        case "Enter":
-          e.preventDefault();
-          if (filteredCountries[highlightedIndex]) {
-            handleSelect(filteredCountries[highlightedIndex]);
-          }
-          break;
-        case "Escape":
-          setIsOpen(false);
-          setQuery("");
-          setIsFocused(false);
-          inputRef.current?.blur();
-          break;
-      }
-    },
-    [filteredCountries, highlightedIndex, handleSelect],
-  );
-
-  // Clear search
-  const handleClear = useCallback(() => {
-    setQuery("");
-    setIsOpen(false);
-    inputRef.current?.focus();
-  }, []);
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setHighlightedIndex(Math.min(activeIndex + 1, results.length - 1));
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setHighlightedIndex(Math.max(activeIndex - 1, 0));
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (results[activeIndex]) {
+          handleSelect(results[activeIndex]);
+        }
+        break;
+      case "Escape":
+        setQuery("");
+        setIsFocused(false);
+        inputRef.current?.blur();
+        break;
+      default:
+        break;
+    }
+  };
 
   return (
-    <div ref={containerRef} className="absolute top-6 left-1/2 -translate-x-1/2 z-10 w-[360px]">
-      {/* Search Input */}
-      <div
-        className="flex items-center rounded-2xl overflow-hidden transition-all duration-200"
-        style={{
-          ...GLASS_STYLE,
-          border: isFocused
-            ? "1px solid rgba(59, 130, 246, 0.35)"
-            : "1px solid rgba(255, 255, 255, 0.07)",
-          boxShadow: isFocused
-            ? "0 20px 60px rgba(0,0,0,0.55), 0 0 0 3px rgba(59,130,246,0.08), inset 0 1px 0 rgba(255,255,255,0.06)"
-            : GLASS_STYLE.boxShadow,
-        }}
+    <div
+      ref={containerRef}
+      className="absolute top-5 left-1/2 z-20 w-[min(440px,calc(100%-32px))] -translate-x-1/2 sm:left-5 sm:w-[min(360px,calc(100%-420px))] sm:translate-x-0 xl:left-1/2 xl:w-[440px] xl:-translate-x-1/2"
+    >
+      <label
+        className="glass flex h-11 items-center gap-2 rounded-control pl-4 pr-3 transition-shadow duration-(--dur-hover) focus-within:shadow-[var(--shadow-panel),inset_0_1px_0_var(--glass-hi),0_0_0_3px_var(--accent-soft)]"
+        htmlFor="country-search"
       >
-        {/* Search Icon */}
-        <div
-          className="pl-4 flex-shrink-0 transition-colors duration-200"
-          style={{ color: isFocused ? "rgba(96, 165, 250, 0.75)" : "rgba(255,255,255,0.28)" }}
-        >
-          <SearchIcon className="w-4 h-4" />
-        </div>
-
-        {/* Input */}
+        <SearchIcon className="size-[17px] shrink-0 text-label-2" />
         <input
+          id="country-search"
           ref={inputRef}
           type="text"
+          role="combobox"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={() => {
-            setIsFocused(true);
-            if (query) {
-              setIsOpen(true);
-            }
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setHighlightedIndex(0);
           }}
-          placeholder="Search countries..."
-          className="flex-1 bg-transparent text-sm py-3 px-3 outline-none text-white/85 placeholder:text-white/28"
-          style={{ caretColor: "#60a5fa" }}
-          aria-label="Search countries"
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          placeholder="Search countries"
+          autoComplete="off"
+          spellCheck={false}
+          className="min-w-0 flex-1 bg-transparent text-[16px] text-label caret-accent outline-none placeholder:text-label-3"
           aria-expanded={isOpen}
-          aria-controls="search-results"
+          aria-controls="country-search-results"
           aria-autocomplete="list"
+          aria-activedescendant={
+            isOpen && results[activeIndex] ? `country-option-${activeIndex}` : undefined
+          }
         />
-
-        {/* Clear Button */}
         {query ? (
           <button
-            onClick={handleClear}
-            className="pr-4 flex-shrink-0 transition-colors duration-150"
-            style={{ color: "rgba(255,255,255,0.28)" }}
+            type="button"
+            onClick={() => {
+              setQuery("");
+              inputRef.current?.focus();
+            }}
+            className="pressable grid size-6 shrink-0 place-items-center rounded-full bg-fill-2 text-label-2 hover:bg-fill-3"
             aria-label="Clear search"
           >
-            <CloseIcon className="w-3.5 h-3.5" />
+            <CloseIcon className="size-3" />
           </button>
-        ) : null}
-      </div>
+        ) : (
+          <kbd className="shrink-0 rounded-md border-[0.5px] border-sep bg-fill-1 px-1.5 py-0.5 font-mono text-[11px] text-label-3">
+            ⌘K
+          </kbd>
+        )}
+      </label>
 
-      {/* Results Dropdown */}
       {isOpen ? (
         <div
-          id="search-results"
+          id="country-search-results"
           role="listbox"
-          className="absolute top-full left-0 right-0 mt-2 rounded-2xl overflow-hidden"
-          style={{
-            ...GLASS_STYLE,
-            border: "1px solid rgba(255, 255, 255, 0.07)",
-          }}
+          aria-label="Countries"
+          className="glass enter-spring mt-2 overflow-hidden rounded-control p-1"
         >
-          {filteredCountries.length > 0 ? (
-            <ul>
-              {filteredCountries.map((country, index) => {
-                const isHighlighted = index === highlightedIndex;
-                const isSelected =
-                  selectedCountry?.properties?.iso_a3 === country.properties?.iso_a3;
-                const continentColor =
-                  CONTINENT_COLORS[country.properties?.continent || ""] || "#8a9a8a";
-
-                return (
-                  <li
-                    key={country.properties?.iso_a3 || index}
-                    style={{
-                      borderBottom:
-                        index < filteredCountries.length - 1
-                          ? "1px solid rgba(255,255,255,0.04)"
-                          : "none",
-                    }}
+          {results.length > 0 ? (
+            results.map((country, index) => {
+              const { name, iso_a3: iso3, subregion, continent } = country.properties;
+              const active = index === activeIndex;
+              return (
+                <button
+                  key={country.index}
+                  id={`country-option-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  onClick={() => handleSelect(country)}
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                  style={{ animationDelay: `calc(${index} * var(--stagger))` }}
+                  className={`pressable enter-spring grid w-full grid-cols-[32px_1fr_auto] items-center gap-3 rounded-row px-3 py-2 text-left ${
+                    active ? "bg-fill-2" : ""
+                  }`}
+                >
+                  <span
+                    className="grid size-8 place-items-center rounded-full text-[13px] font-semibold text-black/80"
+                    style={{ background: getCountryColor(continent, country.index) }}
+                    aria-hidden="true"
                   >
-                    <button
-                      role="option"
-                      aria-selected={isHighlighted}
-                      onClick={() => handleSelect(country)}
-                      onMouseEnter={() => setHighlightedIndex(index)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-100"
-                      style={{
-                        background: isHighlighted
-                          ? "rgba(255,255,255,0.06)"
-                          : isSelected
-                            ? "rgba(59,130,246,0.08)"
-                            : "transparent",
-                      }}
-                    >
-                      {/* Continent Color Dot */}
-                      <span
-                        className="w-[7px] h-[7px] rounded-full flex-shrink-0"
-                        style={{ background: continentColor, opacity: 0.8 }}
-                      />
-
-                      {/* Country Name */}
-                      <span
-                        className="flex-1 text-sm truncate"
-                        style={{ color: "rgba(255,255,255,0.82)" }}
-                      >
-                        {country.properties?.name}
-                      </span>
-
-                      {/* ISO Code */}
-                      <span
-                        className="text-[10px] font-mono flex-shrink-0"
-                        style={{ color: "rgba(255,255,255,0.28)" }}
-                      >
-                        {country.properties?.iso_a3}
-                      </span>
-
-                      {/* Selected Indicator */}
-                      {isSelected ? (
-                        <CheckIcon className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                      ) : null}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+                    {name.charAt(0)}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[15px] font-semibold text-label">
+                      <HighlightedName name={name} query={normalized} />
+                    </span>
+                    <span className="block truncate text-[13px] text-label-2">
+                      {[subregion ?? continent, iso3 !== "-99" ? iso3 : null]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </span>
+                  <span className="hidden font-mono text-[11.5px] whitespace-nowrap text-label-3 sm:block">
+                    {formatCoordinates(country.label)}
+                  </span>
+                </button>
+              );
+            })
           ) : (
-            <div
-              className="px-4 py-4 text-sm text-center"
-              style={{ color: "rgba(255,255,255,0.3)" }}
-            >
-              No countries found
-            </div>
+            <p className="px-3 py-3 text-[14px] text-label-2">
+              No country matches “{query.trim()}”
+            </p>
           )}
         </div>
       ) : null}
@@ -294,12 +256,12 @@ const SearchIcon = ({ className }: { className?: string }) => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
+    strokeWidth="2.4"
     strokeLinecap="round"
-    strokeLinejoin="round"
+    aria-hidden="true"
   >
-    <circle cx="11" cy="11" r="8" />
-    <path d="m21 21-4.3-4.3" />
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
   </svg>
 );
 
@@ -309,26 +271,11 @@ const CloseIcon = ({ className }: { className?: string }) => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
+    strokeWidth="3"
     strokeLinecap="round"
-    strokeLinejoin="round"
+    aria-hidden="true"
   >
-    <path d="M18 6 6 18" />
-    <path d="m6 6 12 12" />
-  </svg>
-);
-
-const CheckIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M20 6 9 17l-5-5" />
+    <path d="M6 6l12 12M18 6 6 18" />
   </svg>
 );
 

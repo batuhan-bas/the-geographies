@@ -30,6 +30,7 @@ const CameraController = () => {
   const selectedCountry = useMapStore((state) => state.selectedCountry);
   const viewMode = useMapStore((state) => state.viewMode);
   const projection = useMapStore((state) => state.projection);
+  const focusNonce = useMapStore((state) => state.focusNonce);
   const { morphProgress } = useMorphAnimation();
 
   // Animate camera to focus on selected country
@@ -84,7 +85,8 @@ const CameraController = () => {
       duration: 1.2,
       ease: "power3.out",
     });
-  }, [selectedCountry, viewMode, camera]);
+    // focusNonce: "Focus" in the country card re-flies to the same country
+  }, [selectedCountry, viewMode, camera, focusNonce]);
 
   // Adjust camera for view mode transition
   useEffect(() => {
@@ -207,6 +209,10 @@ const Scene = ({ countries, geometryData }: SceneProps) => {
 // MapCanvas Component
 // ==========================================
 
+function hasStatsParam(): boolean {
+  return typeof window !== "undefined" && new URLSearchParams(window.location.search).has("stats");
+}
+
 export interface MapCanvasProps {
   countries: CountryFeature[];
   geometryData: CountryGeometryData;
@@ -235,7 +241,8 @@ export const MapCanvas = ({
         shadows={false}
       >
         <Scene countries={countries} geometryData={geometryData} />
-        {showStats ? <Stats /> : null}
+        {/* FPS meter: opt-in via ?stats so it never covers the UI */}
+        {showStats || hasStatsParam() ? <Stats /> : null}
       </Canvas>
     </div>
   );

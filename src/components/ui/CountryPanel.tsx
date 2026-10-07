@@ -1,423 +1,295 @@
 "use client";
 
-import { useRef, useEffect } from "react";
-import { gsap } from "gsap";
+import { useEffect, useMemo, useState } from "react";
 import { useCountrySelection } from "@/store/hooks";
+import { useMapStore } from "@/store/mapStore";
+import { getCountryColor } from "@/lib/geo/countryColors";
+import { formatCoordinates, formatGdp, formatPopulation, stripRank } from "@/lib/geo/format";
+import { buildSilhouette } from "@/lib/geo/silhouette";
+import type { CountryFeature, CountryGeometryData } from "@/types/geo";
+
+interface CountryPanelProps {
+  /** Prebuilt geometry, used to draw the country silhouette */
+  geometryData?: CountryGeometryData;
+}
 
 // ==========================================
-// Continent Colors (matching CountryMesh)
+// CountryPanel — Apple Maps style place card (MASTER.md › Place card)
 // ==========================================
 
-const CONTINENT_COLORS: Record<string, string> = {
-  Europe: "#5d9b6b",
-  Asia: "#d4a574",
-  Africa: "#e8a83c",
-  "North America": "#7eb5a6",
-  "South America": "#6bc268",
-  Oceania: "#c287a5",
-  Antarctica: "#b8c4ce",
+export const CountryPanel = ({ geometryData }: CountryPanelProps) => {
+  const { selectedCountry, isPanelOpen, closePanel } = useCountrySelection();
+  const open = isPanelOpen && selectedCountry !== null;
+
+  // Keep the last country rendered while the card animates out
+  const [shown, setShown] = useState<CountryFeature | null>(selectedCountry);
+  if (selectedCountry && selectedCountry !== shown) {
+    setShown(selectedCountry);
+  }
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        closePanel();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, closePanel]);
+
+  return (
+    <aside
+      aria-label={shown ? `${shown.properties.name} details` : "Country details"}
+      aria-hidden={!open}
+      inert={!open}
+      className={`glass fixed inset-x-3 bottom-3 z-20 flex h-[min(62vh,560px)] flex-col overflow-hidden rounded-panel sm:inset-x-auto sm:top-5 sm:right-5 sm:bottom-5 sm:h-auto sm:w-[360px] ${
+        open
+          ? "translate-x-0 opacity-100 transition-[transform,opacity] duration-(--dur-spring) ease-(--ease-spring)"
+          : "pointer-events-none translate-y-4 opacity-0 transition-[transform,opacity] duration-(--dur-exit) ease-(--ease-exit) sm:translate-x-6 sm:translate-y-0"
+      }`}
+    >
+      {shown ? (
+        <PlaceCard
+          key={shown.index}
+          country={shown}
+          geometryData={geometryData}
+          onClose={closePanel}
+        />
+      ) : null}
+    </aside>
+  );
 };
 
 // ==========================================
-// CountryPanel Component
+// Card content
 // ==========================================
 
-export const CountryPanel = () => {
-  const { selectedCountry, isPanelOpen, closePanel } = useCountrySelection();
-  const panelRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!panelRef.current) {
-      return;
-    }
-
-    if (isPanelOpen && selectedCountry) {
-      gsap.to(panelRef.current, {
-        x: 0,
-        duration: 0.4,
-        ease: "power3.out",
-      });
-
-      if (contentRef.current) {
-        gsap.fromTo(
-          contentRef.current.children,
-          { opacity: 0, y: 12 },
-          {
-            opacity: 1,
-            y: 0,
-            duration: 0.3,
-            stagger: 0.05,
-            delay: 0.15,
-            ease: "power2.out",
-          },
-        );
-      }
-    } else {
-      gsap.to(panelRef.current, {
-        x: "100%",
-        duration: 0.3,
-        ease: "power3.in",
-      });
-    }
-  }, [isPanelOpen, selectedCountry]);
-
-  const properties = selectedCountry?.properties;
-  const continentColor = CONTINENT_COLORS[properties?.continent || ""] || "#6b7c93";
-  const initial = (properties?.name || "?")[0].toUpperCase();
+const PlaceCard = ({
+  country,
+  geometryData,
+  onClose,
+}: {
+  country: CountryFeature;
+  geometryData?: CountryGeometryData;
+  onClose: () => void;
+}) => {
+  const p = country.properties;
+  const color = getCountryColor(p.continent, country.index);
+  const silhouette = useMemo(
+    () => (geometryData ? buildSilhouette(geometryData, country.index) : null),
+    [geometryData, country.index],
+  );
+  const population = formatPopulation(p.pop_est);
+  const gdp = formatGdp(p.gdp_md);
+  const coordinates = formatCoordinates(country.label);
+  const codes = [p.iso_a2, p.iso_a3].filter((c) => c && !/^-|^--/.test(c));
 
   return (
     <>
-      {/* Backdrop */}
-      {isPanelOpen ? (
-        <div
-          className="fixed inset-0 z-10"
-          style={{ background: "rgba(0,0,0,0.18)" }}
-          onClick={closePanel}
-        />
-      ) : null}
-
-      {/* Panel */}
+      {/* Hero: continent-tinted wash + silhouette from real geometry */}
       <div
-        ref={panelRef}
-        className="fixed right-0 top-0 h-full w-[360px] z-20 transform translate-x-full flex flex-col"
+        className="relative grid h-[150px] flex-none place-items-center border-b-[0.5px] border-sep"
         style={{
-          background: "rgba(7, 10, 22, 0.90)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
-          borderLeft: "1px solid rgba(255, 255, 255, 0.07)",
-          boxShadow: "-20px 0 60px rgba(0, 0, 0, 0.45)",
+          background: `radial-gradient(120% 120% at 20% 0%, color-mix(in srgb, ${color} 50%, transparent), transparent 70%), linear-gradient(180deg, color-mix(in srgb, ${color} 16%, transparent), transparent)`,
         }}
       >
-        {/* Header */}
-        <div
-          className="flex items-center justify-between px-5 py-[14px] flex-shrink-0"
-          style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+        {silhouette ? (
+          <svg
+            viewBox={`-4 -4 ${silhouette.width + 8} ${silhouette.height + 8}`}
+            className="enter-spring h-[104px] w-[70%] drop-shadow-[0_6px_14px_rgba(0,0,0,0.4)]"
+            role="img"
+            aria-label={`Outline of ${p.name}`}
+          >
+            <path
+              d={silhouette.path}
+              fill={color}
+              stroke={color}
+              strokeWidth="0.6"
+              strokeLinejoin="round"
+            />
+          </svg>
+        ) : null}
+        <button
+          type="button"
+          onClick={onClose}
+          className="pressable absolute top-3 right-3 grid size-[30px] place-items-center rounded-full bg-fill-2 text-label-2 hover:bg-fill-3"
+          aria-label="Close"
         >
-          <span
-            className="text-[10px] font-semibold tracking-[0.15em] uppercase"
-            style={{ color: "rgba(255,255,255,0.22)" }}
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            aria-hidden="true"
           >
-            Country Details
-          </span>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              closePanel();
-            }}
-            className="w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-150"
-            style={{ color: "rgba(255,255,255,0.35)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.07)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            aria-label="Close panel"
-          >
-            <CloseIcon className="w-3.5 h-3.5" />
-          </button>
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="grid content-start gap-4 overflow-y-auto px-5 pt-4 pb-5">
+        {/* Title */}
+        <div className="enter-spring">
+          <h2 className="font-display text-[30px] leading-[1.1] font-bold tracking-[-0.02em] text-label">
+            {p.name}
+          </h2>
+          <p className="mt-1 text-[14px] text-label-2">
+            {[
+              p.formal_name && p.formal_name !== p.name ? p.formal_name : null,
+              p.subregion ?? p.continent,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {codes.map((code) => (
+              <span
+                key={code}
+                className="rounded-md bg-fill-1 px-[7px] py-0.5 font-mono text-[11px] text-label-2"
+              >
+                {code}
+              </span>
+            ))}
+            {p.type ? (
+              <span className="rounded-md bg-fill-1 px-[7px] py-0.5 text-[11px] text-label-2">
+                {p.type}
+              </span>
+            ) : null}
+          </div>
         </div>
 
-        {/* Scrollable Content */}
-        <div
-          ref={contentRef}
-          className="flex-1 overflow-y-auto px-5 py-5"
-          style={{ display: "flex", flexDirection: "column", gap: "14px" }}
-        >
-          {properties ? (
-            <>
-              {/* Country Hero */}
-              <div className="flex items-start gap-4">
-                {/* Country Avatar */}
-                <div
-                  className="w-[46px] h-[46px] rounded-[14px] flex items-center justify-center text-[18px] font-bold flex-shrink-0"
-                  style={{
-                    background: `linear-gradient(135deg, ${continentColor}30 0%, ${continentColor}14 100%)`,
-                    border: `1px solid ${continentColor}30`,
-                    color: continentColor,
-                  }}
-                >
-                  {initial}
-                </div>
+        {/* Actions */}
+        <CardActions country={country} coordinates={coordinates} />
 
-                {/* Name + Formal name */}
-                <div className="min-w-0 flex-1">
-                  <h2
-                    className="text-[22px] font-semibold tracking-tight leading-tight"
-                    style={{ color: "rgba(255,255,255,0.95)" }}
-                  >
-                    {properties.name}
-                  </h2>
-                  {properties.formal_name && properties.formal_name !== properties.name ? (
-                    <p
-                      className="text-[11px] mt-0.5 leading-tight"
-                      style={{ color: "rgba(255,255,255,0.32)" }}
-                    >
-                      {properties.formal_name}
-                    </p>
-                  ) : null}
-                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                    {properties.iso_a2 && properties.iso_a2 !== "-1" ? (
-                      <Badge>{properties.iso_a2}</Badge>
-                    ) : null}
-                    {properties.iso_a3 && properties.iso_a3 !== "-99" ? (
-                      <Badge>{properties.iso_a3}</Badge>
-                    ) : null}
-                    {properties.type ? <Badge accent>{properties.type}</Badge> : null}
-                  </div>
-                </div>
-              </div>
+        {/* Stats */}
+        {population || gdp ? (
+          <div className="enter-spring grid grid-cols-2 gap-2 [animation-delay:calc(2*var(--stagger))]">
+            {population ? (
+              <Stat label="Population" value={population.value} unit={population.unit} />
+            ) : null}
+            {gdp ? <Stat label="GDP" value={gdp.value} unit={gdp.unit} /> : null}
+          </div>
+        ) : null}
 
-              {/* Location */}
-              <GlassCard title="Location">
-                <InfoRow label="Continent" value={properties.continent} />
-                {properties.region ? (
-                  <InfoRow label="Region" value={properties.region} divider />
-                ) : null}
-                {properties.subregion ? (
-                  <InfoRow label="Subregion" value={properties.subregion} divider />
-                ) : null}
-              </GlassCard>
-
-              {/* Statistics */}
-              {properties.pop_est || properties.gdp_md ? (
-                <div>
-                  <SectionLabel>Statistics</SectionLabel>
-                  <div className="grid grid-cols-2 gap-2 mt-2.5">
-                    {properties.pop_est !== undefined && properties.pop_est > 0 && (
-                      <StatCard
-                        label="Population"
-                        value={formatNumber(properties.pop_est)}
-                        accent="#60a5fa"
-                      />
-                    )}
-                    {properties.gdp_md !== undefined && properties.gdp_md > 0 && (
-                      <StatCard
-                        label="GDP"
-                        value={`$${formatNumber(properties.gdp_md)}M`}
-                        accent="#34d399"
-                      />
-                    )}
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Economic Classification */}
-              {properties.economy || properties.income_grp ? (
-                <GlassCard title="Economic Classification">
-                  {properties.economy ? (
-                    <div>
-                      <p
-                        className="text-[9px] font-semibold tracking-[0.12em] uppercase"
-                        style={{ color: "rgba(255,255,255,0.22)" }}
-                      >
-                        Economy Type
-                      </p>
-                      <p
-                        className="text-xs mt-1 font-medium"
-                        style={{ color: "rgba(255,255,255,0.72)" }}
-                      >
-                        {properties.economy}
-                      </p>
-                    </div>
-                  ) : null}
-                  {properties.economy && properties.income_grp ? (
-                    <div
-                      className="my-3"
-                      style={{
-                        height: "1px",
-                        background: "rgba(255,255,255,0.05)",
-                      }}
-                    />
-                  ) : null}
-                  {properties.income_grp ? (
-                    <div>
-                      <p
-                        className="text-[9px] font-semibold tracking-[0.12em] uppercase"
-                        style={{ color: "rgba(255,255,255,0.22)" }}
-                      >
-                        Income Group
-                      </p>
-                      <p
-                        className="text-xs mt-1 font-medium"
-                        style={{ color: "rgba(255,255,255,0.72)" }}
-                      >
-                        {properties.income_grp}
-                      </p>
-                    </div>
-                  ) : null}
-                </GlassCard>
-              ) : null}
-
-              {/* Actions */}
-              <div className="space-y-2 pt-1">
-                <button
-                  className="w-full py-2.5 px-4 rounded-xl text-sm font-medium transition-all duration-150"
-                  style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    color: "rgba(255,255,255,0.65)",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = "rgba(255,255,255,0.08)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "rgba(255,255,255,0.05)")
-                  }
-                >
-                  View Full Profile
-                </button>
-                <button
-                  className="w-full py-2.5 px-4 rounded-xl text-sm font-medium transition-all duration-150"
-                  style={{
-                    background: "rgba(59, 130, 246, 0.18)",
-                    border: "1px solid rgba(59, 130, 246, 0.28)",
-                    color: "rgba(147, 197, 253, 0.92)",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = "rgba(59, 130, 246, 0.26)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "rgba(59, 130, 246, 0.18)")
-                  }
-                >
-                  View Statistics
-                </button>
-              </div>
-            </>
+        {/* Details */}
+        <dl className="enter-spring rounded-control bg-fill-1 [animation-delay:calc(3*var(--stagger))]">
+          <Row label="Continent" value={p.continent} />
+          {p.region && p.region !== p.continent ? <Row label="Region" value={p.region} /> : null}
+          {p.subregion ? <Row label="Subregion" value={p.subregion} /> : null}
+          <Row label="Coordinates" value={coordinates} mono />
+          {p.economy ? <Row label="Economy" value={stripRank(p.economy)} /> : null}
+          {p.income_grp ? <Row label="Income group" value={stripRank(p.income_grp)} /> : null}
+          {p.sovereignty && p.sovereignty !== p.name ? (
+            <Row label="Sovereignty" value={p.sovereignty} />
           ) : null}
-        </div>
+        </dl>
       </div>
     </>
   );
 };
 
-// ==========================================
-// Sub-components
-// ==========================================
-
-const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-  <p
-    className="text-[9px] font-semibold tracking-[0.14em] uppercase"
-    style={{ color: "rgba(255,255,255,0.22)" }}
-  >
-    {children}
-  </p>
-);
-
-const GlassCard = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <div
-    className="rounded-xl px-3.5 py-3"
-    style={{
-      background: "rgba(255,255,255,0.035)",
-      border: "1px solid rgba(255,255,255,0.06)",
-    }}
-  >
-    <p
-      className="text-[9px] font-semibold tracking-[0.14em] uppercase mb-3"
-      style={{ color: "rgba(255,255,255,0.22)" }}
-    >
-      {title}
-    </p>
-    {children}
-  </div>
-);
-
-const InfoRow = ({
-  label,
-  value,
-  divider,
+const CardActions = ({
+  country,
+  coordinates,
 }: {
-  label: string;
-  value: string;
-  divider?: boolean;
-}) => (
-  <>
-    {divider ? <div style={{ height: "1px", background: "rgba(255,255,255,0.05)" }} /> : null}
-    <div className="flex justify-between items-center py-[9px]">
-      <span className="text-xs" style={{ color: "rgba(255,255,255,0.36)" }}>
-        {label}
-      </span>
-      <span className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.78)" }}>
-        {value}
-      </span>
-    </div>
-  </>
-);
+  country: CountryFeature;
+  coordinates: string;
+}) => {
+  const requestFocus = useMapStore((state) => state.requestFocus);
+  const [copied, setCopied] = useState(false);
 
-const StatCard = ({ label, value, accent }: { label: string; value: string; accent: string }) => (
-  <div
-    className="rounded-xl px-3 py-3"
-    style={{
-      background: "rgba(255,255,255,0.035)",
-      border: "1px solid rgba(255,255,255,0.06)",
-      borderTop: `2px solid ${accent}40`,
-    }}
-  >
-    <p
-      className="text-[9px] font-semibold tracking-[0.1em] uppercase mb-1.5"
-      style={{ color: "rgba(255,255,255,0.28)" }}
-    >
-      {label}
-    </p>
-    <p className="text-xl font-semibold tracking-tight" style={{ color: accent }}>
-      {value}
-    </p>
-  </div>
-);
-
-const Badge = ({ children, accent }: { children: React.ReactNode; accent?: boolean }) => (
-  <span
-    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium"
-    style={
-      accent
-        ? {
-            background: "rgba(59, 130, 246, 0.12)",
-            color: "rgba(147, 197, 253, 0.85)",
-            border: "1px solid rgba(59, 130, 246, 0.2)",
-          }
-        : {
-            background: "rgba(255,255,255,0.06)",
-            color: "rgba(255,255,255,0.42)",
-            border: "1px solid rgba(255,255,255,0.06)",
-          }
+  useEffect(() => {
+    if (!copied) {
+      return;
     }
-  >
-    {children}
-  </span>
-);
+    const timer = setTimeout(() => setCopied(false), 1600);
+    return () => clearTimeout(timer);
+  }, [copied]);
 
-// ==========================================
-// Helper Functions
-// ==========================================
+  const copy = () => {
+    navigator.clipboard
+      .writeText(coordinates)
+      .then(() => setCopied(true))
+      .catch(() => setCopied(false));
+  };
 
-function formatNumber(num: number): string {
-  if (num >= 1e9) {
-    return `${(num / 1e9).toFixed(1)}B`;
-  }
-  if (num >= 1e6) {
-    return `${(num / 1e6).toFixed(1)}M`;
-  }
-  if (num >= 1e3) {
-    return `${(num / 1e3).toFixed(1)}K`;
-  }
-  return num.toString();
-}
+  const wikiTitle = encodeURIComponent(
+    (country.properties.name_long ?? country.properties.name).replace(/ /g, "_"),
+  );
+  const tile =
+    "pressable grid justify-items-center gap-1 rounded-control pt-2.5 pb-2 text-[12px] font-semibold";
 
-// ==========================================
-// Icons
-// ==========================================
+  return (
+    <div className="enter-spring grid grid-cols-3 gap-2 [animation-delay:var(--stagger)]">
+      <button
+        type="button"
+        onClick={requestFocus}
+        className={`${tile} bg-accent text-white hover:brightness-110`}
+      >
+        <ActionIcon d="M12 2v4M12 18v4M2 12h4M18 12h4" circle />
+        Focus
+      </button>
+      <button
+        type="button"
+        onClick={copy}
+        className={`${tile} bg-fill-1 text-accent hover:bg-fill-2`}
+        aria-live="polite"
+      >
+        <ActionIcon d={copied ? "M5 12l5 5L20 7" : "M9 9h11v11H9zM5 15H4V4h11v1"} />
+        {copied ? "Copied" : "Copy"}
+      </button>
+      <a
+        href={`https://en.wikipedia.org/wiki/${wikiTitle}`}
+        target="_blank"
+        rel="noreferrer"
+        className={`${tile} bg-fill-1 text-accent hover:bg-fill-2`}
+      >
+        <ActionIcon d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" />
+        Wikipedia
+      </a>
+    </div>
+  );
+};
 
-const CloseIcon = ({ className }: { className?: string }) => (
+const ActionIcon = ({ d, circle = false }: { d: string; circle?: boolean }) => (
   <svg
-    className={className}
+    width="18"
+    height="18"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
+    aria-hidden="true"
   >
-    <line x1="18" y1="6" x2="6" y2="18" />
-    <line x1="6" y1="6" x2="18" y2="18" />
+    {circle ? <circle cx="12" cy="12" r="3" /> : null}
+    <path d={d} />
   </svg>
+);
+
+const Stat = ({ label, value, unit }: { label: string; value: string; unit: string }) => (
+  <div className="rounded-control bg-fill-1 p-3">
+    <span className="block text-[12px] text-label-2">{label}</span>
+    <span className="mt-0.5 block font-display text-[24px] font-semibold tracking-[-0.01em] text-label tabular-nums">
+      {value}
+      <span className="ml-0.5 text-[14px] font-medium text-label-2">{unit}</span>
+    </span>
+  </div>
+);
+
+const Row = ({ label, value, mono = false }: { label: string; value?: string; mono?: boolean }) => (
+  <div className="grid grid-cols-[auto_1fr] gap-3 px-3 py-[11px] text-[14px] not-first:border-t-[0.5px] not-first:border-sep">
+    <dt className="text-label-2">{label}</dt>
+    <dd className={`text-right text-label ${mono ? "font-mono text-[12.5px]" : ""}`}>
+      {value ?? "—"}
+    </dd>
+  </div>
 );
 
 export default CountryPanel;
