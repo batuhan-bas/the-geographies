@@ -89,6 +89,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored three.js Basis transcoder (copied from three/examples)
+    "public/basis/**",
   ]),
 ]);
 

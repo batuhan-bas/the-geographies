@@ -33,7 +33,7 @@ Interactive 3D world map with morphable Globe/Flat projections built with Next.j
 - **Topography Layer**: Hypsometric tint coloring with antialiased contour lines from elevation data
 - **Data Visualization**: Choropleth maps for country data and heatmaps with Gaussian kernel density
 - **Day/Night Cycle**: Realistic day/night lighting with city lights, twilight glow, and atmosphere effects
-- **16K Textures**: High-resolution NASA Blue Marble and Natural Earth imagery
+- **16K Textures, streamed**: NASA Blue Marble and Natural Earth imagery as GPU-compressed KTX2, loaded progressively (2K preview → 4K/8K device tier → 16K when zoomed in on desktop)
 - **Continent-based Coloring**: Warm color palette organized by continent, echoed in panel avatar and search results
 - **Glass Morphism UI**: Deep-blur panels with layered shadows, accent bars, and focus-ring animations
 - **Responsive Controls**: Pan, zoom, and rotate with mouse/touch
@@ -87,24 +87,38 @@ pnpm format            # Prettier — write
 pnpm format:check      # Prettier — check only
 ```
 
+### Rebuilding Textures
+
+Source images live in `assets/textures-src/` (not deployed). `pnpm textures` builds the KTX2 tiers into `public/textures/` (Basis ETC1S for color maps, zstd-compressed R8 for elevation). It requires [`toktx`](https://github.com/KhronosGroup/KTX-Software/releases) (KTX-Software ≥ 4.3) on `PATH`, or set `TOKTX=/path/to/toktx`.
+
+```bash
+pnpm textures          # build missing/outdated tiers
+pnpm textures --force  # rebuild all tiers
+```
+
 ## Project Structure
 
 ```
 src/
 ├── app/                    # Next.js App Router
 ├── components/
-│   ├── canvas/            # 3D components (Globe, CountryMesh, etc.)
+│   ├── canvas/            # 3D components (Globe, CountriesLayer, CountryBorders, CountryLabels, ...)
 │   ├── ui/                # UI components (ControlPanel, CountryPanel, CountrySearch)
 │   └── visualization/     # Data visualization (HeatmapLayer, Legend)
 ├── lib/
-│   ├── geo/               # Geographic utilities (projections, morphing)
+│   ├── geo/               # Geographic utilities (projections, morphing, merged geometry)
+│   ├── textures/          # KTX2 loading + progressive resolution tiers
 │   └── visualization/     # Visualization utilities (color scales, heatmap kernel)
 ├── store/                 # Zustand state management
 └── types/                 # TypeScript type definitions
 
+assets/textures-src/       # 16K source images (NASA Blue Marble, GEBCO, Natural Earth)
+scripts/build-textures.mjs # Source images → KTX2 tiers
+
 public/
+├── basis/                 # Basis Universal transcoder (from three.js)
 ├── data/                  # GeoJSON country data (Natural Earth)
-└── textures/              # 16K Earth textures (NASA Blue Marble, GEBCO, Natural Earth)
+└── textures/              # KTX2 texture tiers (2K–16K)
 ```
 
 ## Controls
@@ -140,5 +154,6 @@ MIT
 - [x] Heatmap kernel fix (degree-space Gaussian with correct aspect ratio)
 - [x] ESLint + Prettier setup ([@batuhan-bas/configs](https://github.com/batuhan-bas/my-configs))
 - [ ] Mobile touch optimizations
-- [ ] Country border smooth morph animation
-- [ ] Progressive texture loading (16K textures load ~35 MB upfront)
+- [x] Country border smooth morph animation
+- [x] Progressive KTX2 texture loading (2K preview, device-aware tiers, 16K on zoom)
+- [x] Single-draw-call countries, borders and labels with GPU picking and label collision

@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, useMemo, useEffect } from "react";
-import { useLoader, useFrame } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { morphProgressRef, sunDirectionRef, useDayNight } from "@/store/hooks";
+import { useProgressiveTexture } from "@/lib/textures/useProgressiveTexture";
 
 // ==========================================
 // Constants - Must match coordinates.ts
@@ -18,6 +19,9 @@ const DEG_TO_RAD = Math.PI / 180;
 const SPHERE_OFFSET = 0.998; // Sphere radius multiplier (slightly smaller)
 const FLAT_Z_OFFSET = -0.01; // Z offset in flat mode (behind political layer)
 
+// Available KTX2 tiers (see scripts/build-textures.mjs)
+const DAYMAP_TIERS_K = [2, 4, 8, 16];
+
 // ==========================================
 // PhysicalGlobe Component
 // ==========================================
@@ -27,12 +31,8 @@ export const PhysicalGlobe = () => {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const { enableDayNight } = useDayNight();
 
-  // Load textures
-  const dayTexture = useLoader(THREE.TextureLoader, "/textures/earth_daymap.jpg");
-  const bumpTexture = useLoader(THREE.TextureLoader, "/textures/earth_topology.png");
-
-  // Configure textures
-  dayTexture.colorSpace = THREE.SRGBColorSpace;
+  // Progressive KTX2: 2K preview → device tier → 16K when zoomed in (desktop)
+  const dayTexture = useProgressiveTexture("earth_daymap", DAYMAP_TIERS_K);
 
   // Create morphable geometry with sphere and flat positions
   // Uses same coordinate system as coordinates.ts for alignment with political layer
@@ -120,8 +120,7 @@ export const PhysicalGlobe = () => {
       new THREE.ShaderMaterial({
         uniforms: {
           morphProgress: { value: morphProgressRef.current },
-          dayMap: { value: dayTexture },
-          bumpMap: { value: bumpTexture },
+          dayMap: { value: null },
           // Shared reference: Globe mutates it in place, no per-frame copy needed
           sunDirection: { value: sunDirectionRef.current },
           enableDayNight: { value: enableDayNight },
@@ -152,7 +151,6 @@ export const PhysicalGlobe = () => {
       `,
         fragmentShader: `
         uniform sampler2D dayMap;
-        uniform sampler2D bumpMap;
         uniform float morphProgress;
         uniform vec3 sunDirection;
         uniform bool enableDayNight;
@@ -225,13 +223,22 @@ export const PhysicalGlobe = () => {
       `,
         side: THREE.DoubleSide,
       }),
-    // enableDayNight is pushed via uniform in useFrame, so it is not a dependency
+    // enableDayNight is pushed via uniform in useFrame, textures via the effect below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dayTexture, bumpTexture],
+    [],
   );
+
+  // Swap in higher-resolution tiers as they arrive, without rebuilding the material
+  useEffect(() => {
+    shaderMaterial.uniforms.dayMap.value = dayTexture;
+  }, [shaderMaterial, dayTexture]);
 
   // <primitive> objects are not auto-disposed by R3F
   useEffect(() => () => shaderMaterial.dispose(), [shaderMaterial]);
+
+  if (!dayTexture) {
+    return null;
+  }
 
   return (
     <mesh ref={meshRef} geometry={geometry} material={shaderMaterial}>

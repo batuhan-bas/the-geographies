@@ -1,9 +1,13 @@
 "use client";
 
-import { useRef, useMemo } from "react";
-import { useLoader, useFrame } from "@react-three/fiber";
+// three.js uniforms are mutated imperatively by design (R3F pattern)
+/* eslint-disable react-hooks/immutability */
+
+import { useRef, useMemo, useEffect } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { morphProgressRef } from "@/store/hooks";
+import { useProgressiveTexture } from "@/lib/textures/useProgressiveTexture";
 
 // ==========================================
 // Constants - Must match coordinates.ts
@@ -18,6 +22,10 @@ const DEG_TO_RAD = Math.PI / 180;
 const SPHERE_OFFSET = 0.999;
 const FLAT_Z_OFFSET = -0.005;
 
+// Available KTX2 tiers (see scripts/build-textures.mjs)
+const HYPSOMETRIC_TIERS_K = [2, 4, 8, 16];
+const ELEVATION_TIERS_K = [2, 4, 8];
+
 // ==========================================
 // TopographyLayer Component
 // ==========================================
@@ -25,12 +33,11 @@ const FLAT_Z_OFFSET = -0.005;
 export const TopographyLayer = () => {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
-  // Load textures
-  const hypsometricTexture = useLoader(THREE.TextureLoader, "/textures/earth_hypsometric.jpg");
-  const elevationTexture = useLoader(THREE.TextureLoader, "/textures/earth_topology.png");
-
-  // Configure textures
-  hypsometricTexture.colorSpace = THREE.SRGBColorSpace;
+  // Progressive KTX2 textures (elevation is linear data, not color)
+  const hypsometricTexture = useProgressiveTexture("earth_hypsometric", HYPSOMETRIC_TIERS_K);
+  const elevationTexture = useProgressiveTexture("earth_elevation", ELEVATION_TIERS_K, {
+    srgb: false,
+  });
 
   // Create morphable geometry with sphere and flat positions
   const geometry = useMemo(() => {
@@ -112,8 +119,8 @@ export const TopographyLayer = () => {
       new THREE.ShaderMaterial({
         uniforms: {
           morphProgress: { value: morphProgressRef.current },
-          hypsometricMap: { value: hypsometricTexture },
-          elevationMap: { value: elevationTexture },
+          hypsometricMap: { value: null },
+          elevationMap: { value: null },
           contourCount: { value: 20.0 },
           contourColor: { value: new THREE.Vector3(0.0, 0.0, 0.0) },
           contourOpacity: { value: 0.3 },
@@ -162,8 +169,21 @@ export const TopographyLayer = () => {
       `,
         side: THREE.DoubleSide,
       }),
-    [hypsometricTexture, elevationTexture],
+    [],
   );
+
+  // <primitive> objects are not auto-disposed by R3F
+  useEffect(() => () => shaderMaterial.dispose(), [shaderMaterial]);
+
+  // Swap in higher-resolution tiers as they arrive, without rebuilding the material
+  useEffect(() => {
+    shaderMaterial.uniforms.hypsometricMap.value = hypsometricTexture;
+    shaderMaterial.uniforms.elevationMap.value = elevationTexture;
+  }, [shaderMaterial, hypsometricTexture, elevationTexture]);
+
+  if (!hypsometricTexture || !elevationTexture) {
+    return null;
+  }
 
   return (
     <mesh geometry={geometry} material={shaderMaterial}>
