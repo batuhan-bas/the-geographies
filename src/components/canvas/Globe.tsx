@@ -3,7 +3,7 @@
 import { useRef, useMemo, Suspense } from "react";
 import { useFrame } from "@react-three/fiber";
 import type * as THREE from "three";
-import { CountryMesh } from "./CountryMesh";
+import { CountriesLayer } from "./CountriesLayer";
 import { CountryBorders } from "./CountryBorders";
 import { CountryLabels } from "./CountryLabels";
 import { PhysicalGlobe } from "./PhysicalGlobe";
@@ -97,18 +97,10 @@ export const Globe = ({
         <meshStandardMaterial color="#1a4a7a" roughness={0.6} metalness={0.2} />
       </mesh>
 
-      {/* Country meshes (political layer) */}
-      {visibleCountries.map((feature, index) => (
-        <CountryMesh
-          key={
-            feature.properties?.iso_a3 && feature.properties.iso_a3 !== "-99"
-              ? feature.properties.iso_a3
-              : `country-${index}`
-          }
-          feature={feature}
-          index={index}
-        />
-      ))}
+      {/* Country meshes (political layer) - single merged mesh, one draw call */}
+      {showPolitical ? (
+        <CountriesLayer countries={countries} hideAntarctica={!isGlobeMode} />
+      ) : null}
 
       {/* Country borders (political layer) */}
       {showPolitical ? (
