@@ -11,8 +11,8 @@ import { useVisualizationStore } from "@/store/visualizationStore";
 import { morphProgressRef, sunDirectionRef } from "@/store/hooks";
 import { interpolateColor } from "@/lib/visualization/colorScales";
 import { getCountryColor } from "@/lib/geo/countryColors";
-import { buildMergedCountryGeometry } from "@/lib/geo/mergeCountries";
-import type { CountryFeature } from "@/types/geo";
+import { buildCountryFillGeometry } from "@/lib/geo/mergeCountries";
+import type { CountryFeature, CountryGeometryData } from "@/types/geo";
 
 // ==========================================
 // Constants
@@ -203,6 +203,8 @@ function getFeatureId(feature: CountryFeature, index: number): string {
 
 interface CountriesLayerProps {
   countries: CountryFeature[];
+  /** Prebuilt, already triangulated geometry (public/data/countries.bin) */
+  geometryData: CountryGeometryData;
   /** Hide Antarctica (flat mode) without rebuilding geometry */
   hideAntarctica?: boolean;
 }
@@ -211,7 +213,11 @@ interface CountriesLayerProps {
  * Political layer: all countries merged into one mesh (one draw call).
  * Hover/selection use GPU picking against a 1×1 ID render target.
  */
-export const CountriesLayer = ({ countries, hideAntarctica = false }: CountriesLayerProps) => {
+export const CountriesLayer = ({
+  countries,
+  geometryData,
+  hideAntarctica = false,
+}: CountriesLayerProps) => {
   const { gl, camera, size } = useThree();
 
   const setHoveredFeature = useMapStore((state) => state.setHoveredFeature);
@@ -225,7 +231,7 @@ export const CountriesLayer = ({ countries, hideAntarctica = false }: CountriesL
   const countryCount = Math.max(1, countries.length);
 
   // ---------- Geometry (built once per country set) ----------
-  const geometry = useMemo(() => buildMergedCountryGeometry(countries), [countries]);
+  const geometry = useMemo(() => buildCountryFillGeometry(geometryData), [geometryData]);
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   // ---------- Style texture (color + visibility per country) ----------

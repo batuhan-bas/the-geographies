@@ -6,7 +6,7 @@ import { ControlPanel } from "@/components/ui/ControlPanel";
 import { CountryPanel } from "@/components/ui/CountryPanel";
 import { CountrySearch } from "@/components/ui/CountrySearch";
 import { ChoroplethLegend, HeatmapLegend } from "@/components/visualization";
-import { loadCountriesFromTopoJSON } from "@/lib/geo/loadCountries";
+import { loadCountryData, type CountryData } from "@/lib/geo/countryData";
 import { useMapStore } from "@/store/mapStore";
 import { useVisualizationStore } from "@/store/visualizationStore";
 import { generateClusteredHeatmapPoints } from "@/lib/visualization";
@@ -55,8 +55,7 @@ function generateDemoData(countries: CountryFeature[]) {
 }
 
 export default function HomePage() {
-  const [countries, setCountries] = useState<CountryFeature[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [countryData, setCountryData] = useState<CountryData | null>(null);
   const setStoreCountries = useMapStore((state) => state.setCountries);
 
   // Visualization store actions
@@ -65,21 +64,23 @@ export default function HomePage() {
   const setHeatmapPoints = useVisualizationStore((state) => state.setHeatmapPoints);
 
   useEffect(() => {
-    void loadCountriesFromTopoJSON().then((data) => {
-      setCountries(data);
-      setStoreCountries(data);
+    loadCountryData()
+      .then((data) => {
+        setCountryData(data);
+        setStoreCountries(data.countries);
 
-      // Generate and set demo visualization data
-      const demoData = generateDemoData(data);
-      setChoroplethData(demoData.choroplethData);
-      setChoroplethConfig({
-        legendTitle: "Population (log)",
-        colorScale: { ...COLOR_SCALES.viridis, domain: [50, 100] as [number, number] },
+        // Generate and set demo visualization data
+        const demoData = generateDemoData(data.countries);
+        setChoroplethData(demoData.choroplethData);
+        setChoroplethConfig({
+          legendTitle: "Population (log)",
+          colorScale: { ...COLOR_SCALES.viridis, domain: [50, 100] as [number, number] },
+        });
+        setHeatmapPoints(demoData.heatmapPoints);
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to load country data:", error);
       });
-      setHeatmapPoints(demoData.heatmapPoints);
-
-      setIsLoading(false);
-    });
   }, [setStoreCountries, setChoroplethData, setChoroplethConfig, setHeatmapPoints]);
 
   return (
@@ -92,7 +93,7 @@ export default function HomePage() {
           </div>
         }
       >
-        {isLoading ? (
+        {!countryData ? (
           <div className="w-full h-full flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
               <div className="w-10 h-10 border-2 border-zinc-800 border-t-zinc-400 rounded-full animate-spin" />
@@ -101,7 +102,8 @@ export default function HomePage() {
           </div>
         ) : (
           <MapCanvas
-            countries={countries}
+            countries={countryData.countries}
+            geometryData={countryData.geometry}
             className="absolute inset-0"
             showStats={process.env.NODE_ENV === "development"}
           />

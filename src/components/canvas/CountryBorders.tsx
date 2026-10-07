@@ -6,9 +6,8 @@
 import { useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import type { Position } from "geojson";
-import type { CountryFeature } from "@/types/geo";
-import { geoToSphere, geoToFlat, GLOBE_RADIUS } from "@/lib/geo/coordinates";
+import type { CountryFeature, CountryGeometryData } from "@/types/geo";
+import { buildCountryBorderGeometry } from "@/lib/geo/mergeCountries";
 import { morphProgressRef } from "@/store/hooks";
 
 // Borders sit just above the country fill to avoid z-fighting
@@ -17,81 +16,25 @@ const FLAT_Z_OFFSET = 0.002;
 
 interface CountryBordersProps {
   countries: CountryFeature[];
+  geometryData: CountryGeometryData;
   /** Hide Antarctica (flat mode) without rebuilding geometry */
   hideAntarctica?: boolean;
   color?: string;
   opacity?: number;
 }
 
-/**
- * Outer ring of each polygon (holes are not rendered, matching the country fill)
- */
-function extractBorderRings(feature: CountryFeature): Position[][] {
-  const { geometry } = feature;
-  if (geometry.type === "Polygon") {
-    return [geometry.coordinates[0]];
-  }
-  if (geometry.type === "MultiPolygon") {
-    return geometry.coordinates.map((polygon) => polygon[0]);
-  }
-  return [];
-}
-
-/**
- * Build all borders as one LineSegments geometry with sphere/flat endpoints.
- * Segments crossing the antimeridian are dropped so the flat map has no
- * lines streaking across the whole width.
- */
-function buildBorderGeometry(countries: CountryFeature[]): THREE.BufferGeometry {
-  const spherePositions: number[] = [];
-  const flatPositions: number[] = [];
-  const antarctica: number[] = [];
-
-  const pushVertex = (lon: number, lat: number, isAntarctica: number) => {
-    const sphere = geoToSphere(lon, lat, GLOBE_RADIUS * SPHERE_OFFSET);
-    const flat = geoToFlat(lon, lat);
-    spherePositions.push(sphere.x, sphere.y, sphere.z);
-    flatPositions.push(flat.x, flat.y, flat.z + FLAT_Z_OFFSET);
-    antarctica.push(isAntarctica);
-  };
-
-  for (const country of countries) {
-    const isAntarctica = country.properties?.continent === "Antarctica" ? 1 : 0;
-    for (const ring of extractBorderRings(country)) {
-      for (let i = 0; i < ring.length - 1; i++) {
-        const [lon0, lat0] = ring[i];
-        const [lon1, lat1] = ring[i + 1];
-        if (Math.abs(lon1 - lon0) > 180) {
-          continue;
-        }
-        pushVertex(lon0, lat0, isAntarctica);
-        pushVertex(lon1, lat1, isAntarctica);
-      }
-    }
-  }
-
-  const geometry = new THREE.BufferGeometry();
-  const sphereAttr = new THREE.Float32BufferAttribute(spherePositions, 3);
-  // `position` is required by three.js; the vertex shader uses the morph attributes instead
-  geometry.setAttribute("position", sphereAttr);
-  geometry.setAttribute("spherePosition", sphereAttr);
-  geometry.setAttribute("flatPosition", new THREE.Float32BufferAttribute(flatPositions, 3));
-  geometry.setAttribute("antarctica", new THREE.Float32BufferAttribute(antarctica, 1));
-  return geometry;
-}
-
 const vertexShader = /* glsl */ `
   attribute vec3 spherePosition;
   attribute vec3 flatPosition;
-  attribute float antarctica;
+  attribute float countryIndex;
 
   uniform float morphProgress;
-  uniform bool hideAntarctica;
+  uniform float hiddenCountry;
 
   varying float vHidden;
 
   void main() {
-    vHidden = hideAntarctica ? antarctica : 0.0;
+    vHidden = abs(countryIndex - hiddenCountry) < 0.5 ? 1.0 : 0.0;
     vec3 morphedPosition = mix(spherePosition, flatPosition, morphProgress);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(morphedPosition, 1.0);
   }
@@ -117,11 +60,19 @@ const fragmentShader = /* glsl */ `
  */
 export const CountryBorders = ({
   countries,
+  geometryData,
   hideAntarctica = false,
   color = "#ffffff",
   opacity = 0.15,
 }: CountryBordersProps) => {
-  const geometry = useMemo(() => buildBorderGeometry(countries), [countries]);
+  const geometry = useMemo(
+    () => buildCountryBorderGeometry(geometryData, SPHERE_OFFSET, FLAT_Z_OFFSET),
+    [geometryData],
+  );
+  const antarcticaIndex = useMemo(
+    () => countries.findIndex((c) => c.properties.continent === "Antarctica"),
+    [countries],
+  );
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   const material = useMemo(
@@ -129,7 +80,7 @@ export const CountryBorders = ({
       new THREE.ShaderMaterial({
         uniforms: {
           morphProgress: { value: morphProgressRef.current },
-          hideAntarctica: { value: false },
+          hiddenCountry: { value: -1 },
           color: { value: new THREE.Color() },
           opacity: { value: 1 },
         },
@@ -145,8 +96,8 @@ export const CountryBorders = ({
   useEffect(() => {
     material.uniforms.color.value.set(color);
     material.uniforms.opacity.value = opacity;
-    material.uniforms.hideAntarctica.value = hideAntarctica;
-  }, [material, color, opacity, hideAntarctica]);
+    material.uniforms.hiddenCountry.value = hideAntarctica ? antarcticaIndex : -1;
+  }, [material, color, opacity, hideAntarctica, antarcticaIndex]);
 
   useFrame(() => {
     material.uniforms.morphProgress.value = morphProgressRef.current;
