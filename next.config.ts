@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Keep the dev badge clear of the search bar and the country card (top/right)
-  devIndicators: { position: "bottom-right" },
+  // Hide the Next.js dev badge ("N"); it only exists in `next dev` and covers the UI
+  devIndicators: false,
 };
 
 export default nextConfig;
