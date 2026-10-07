@@ -163,7 +163,7 @@ export function createMorphableBufferGeometry(
  * Subdivide triangles that are too large in geo coordinates
  * This prevents distortion when projecting to sphere
  */
-function subdivideLargeTriangles(morphable: MorphableGeometry): MorphableGeometry {
+export function subdivideLargeTriangles(morphable: MorphableGeometry): MorphableGeometry {
   const maxEdgeLength = 5; // Max degrees for an edge (smaller = smoother on sphere)
   const maxIterations = 5; // Prevent infinite loops
 
